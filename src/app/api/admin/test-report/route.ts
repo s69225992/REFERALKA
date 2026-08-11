@@ -57,9 +57,23 @@ function authed(req: NextRequest): boolean {
   return false;
 }
 
-// Fleet требует дату-время; если пришла только дата (YYYY-MM-DD) — дополняем.
-function normDate(s: string): string {
+// Fleet требует дату-время и НЕПУСТОЙ интервал. Голую дату (YYYY-MM-DD) для
+// начала периода дополняем началом дня, для конца — концом дня. Иначе выбор
+// одного дня (from == to) даёт нулевой интервал и Fleet отвечает 400
+// ("must contain a non-empty time interval").
+function normFrom(s: string): string {
   return /T/.test(s) ? s : `${s}T00:00:00.000Z`;
+}
+function normTo(s: string): string {
+  return /T/.test(s) ? s : `${s}T23:59:59.999Z`;
+}
+// Гарантируем, что конец строго позже начала (защита от пустого интервала).
+function ensureInterval(from: string, to: string): { from: string; to: string } {
+  let f = new Date(from).getTime();
+  let t = new Date(to).getTime();
+  if (!Number.isFinite(f)) f = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  if (!Number.isFinite(t) || t <= f) t = f + 24 * 60 * 60 * 1000;
+  return { from: new Date(f).toISOString(), to: new Date(t).toISOString() };
 }
 
 function defaultPeriod(): { from: string; to: string } {
@@ -76,8 +90,10 @@ export async function GET(req: NextRequest) {
     config.assertFleet();
     const sp = req.nextUrl.searchParams;
     const def = defaultPeriod();
-    const from = normDate(sp.get("from") ?? def.from);
-    const to = normDate(sp.get("to") ?? def.to);
+    const { from, to } = ensureInterval(
+      normFrom(sp.get("from") ?? def.from),
+      normTo(sp.get("to") ?? def.to),
+    );
     const report = await buildTestReport(from, to);
     return NextResponse.json({ ok: true, report });
   } catch (e) {
