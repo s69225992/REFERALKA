@@ -170,7 +170,7 @@ function applyCustom(){
   else { periodFactor=days/7; render(); }
 }
 
-// ===== Живые данные из Fleet (через /api/admin/test-report, read-only токен) =====
+// ===== Живые данные из Fleet (через /api/admin/test-report, сессионный токен) =====
 async function loadLive(from,to,label){
   const token = sessionStorage.getItem('ref_token');
   if(!token){ showLogin(); return; }
@@ -179,7 +179,7 @@ async function loadLive(from,to,label){
   try{
     const r = await fetch(`/api/admin/test-report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
       { headers: { Authorization: 'Bearer '+token } });
-    if(r.status===401){ sessionStorage.removeItem('ref_token'); showLogin('Неверный код доступа'); return; }
+    if(r.status===401){ sessionStorage.removeItem('ref_token'); showLogin('Сессия истекла — войдите снова'); return; }
     const j = await r.json();
     if(!j.ok){ setBadge('error', j.error||'ошибка'); return; }
     const rep = j.report;
@@ -209,27 +209,43 @@ function setBadge(state,msg){
   b.style.color=c; b.style.background=bg;
 }
 
-// ===== Токен-гейт (код доступа менеджера = CABINET_TOKEN) =====
+// ===== Вход по логину и паролю (проверка на сервере: /api/cabinet/login) =====
 function showLogin(msg){
   if(document.getElementById('loginOv')) { if(msg) document.getElementById('loginErr').textContent=msg; return; }
   const ov=document.createElement('div'); ov.id='loginOv';
   ov.style.cssText='position:fixed;inset:0;z-index:100;background:rgba(15,23,42,.45);display:grid;place-items:center';
   ov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px 24px 20px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.25);font:14px/1.5 system-ui">
     <div style="font:700 17px/1.3 system-ui;margin-bottom:4px">Кабинет менеджера</div>
-    <div style="color:#64748b;margin-bottom:14px">Введите код доступа, чтобы показать реальные данные парка.</div>
-    <input id="loginTok" type="password" placeholder="Код доступа" autocomplete="off"
+    <div style="color:#64748b;margin-bottom:14px">Войдите, чтобы показать реальные данные парка.</div>
+    <input id="loginUser" type="text" placeholder="Логин" autocomplete="username"
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px;margin-bottom:8px">
+    <input id="loginPass" type="password" placeholder="Пароль" autocomplete="current-password"
       style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px">
     <div id="loginErr" style="color:#dc2626;font-size:12px;min-height:16px;margin:6px 2px"></div>
-    <button id="loginGo" style="width:100%;padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:600 14px system-ui;cursor:pointer">Показать живые данные</button>
+    <button id="loginGo" style="width:100%;padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:600 14px system-ui;cursor:pointer">Войти</button>
     <div style="text-align:center;margin-top:10px"><a id="loginLater" href="#" style="color:#64748b;font-size:12px;text-decoration:none">Позже — оставить демо</a></div>
   </div>`;
   document.body.appendChild(ov);
-  if(msg) document.getElementById('loginErr').textContent=msg;
-  const submit=()=>{ const v=document.getElementById('loginTok').value.trim(); if(!v) return;
-    sessionStorage.setItem('ref_token',v); ov.remove(); const [a,b]=weekAgoRange(7); loadLive(a,b,'Эта неделя'); };
+  const errEl=document.getElementById('loginErr');
+  if(msg) errEl.textContent=msg;
+  const submit=async()=>{
+    const login=document.getElementById('loginUser').value.trim();
+    const password=document.getElementById('loginPass').value;
+    if(!login||!password){ errEl.textContent='Введите логин и пароль'; return; }
+    const btn=document.getElementById('loginGo'); const t0=btn.textContent;
+    btn.disabled=true; btn.textContent='Проверка…'; errEl.textContent='';
+    try{
+      const r=await fetch('/api/cabinet/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login,password})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok||!j.ok||!j.token){ errEl.textContent=j.error||'Неверный логин или пароль'; btn.disabled=false; btn.textContent=t0; return; }
+      sessionStorage.setItem('ref_token',j.token); ov.remove();
+      const [a,b]=weekAgoRange(7); loadLive(a,b,'Эта неделя');
+    }catch(e){ errEl.textContent='Ошибка сети, попробуйте ещё раз'; btn.disabled=false; btn.textContent=t0; }
+  };
   document.getElementById('loginGo').onclick=submit;
-  document.getElementById('loginTok').addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
-  document.getElementById('loginTok').focus();
+  document.getElementById('loginPass').addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  document.getElementById('loginUser').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('loginPass').focus(); });
+  document.getElementById('loginUser').focus();
   document.getElementById('loginLater').onclick=(e)=>{ e.preventDefault(); ov.remove(); setBadge('demo'); };
 }
 function periodBar(active){
