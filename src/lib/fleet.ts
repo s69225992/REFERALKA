@@ -104,6 +104,27 @@ export class FleetClient {
     return out;
   }
 
+  // Кол-во заказов парка за период (ISO 8601), фильтр по booked_at, перебор cursor.
+  // Best-effort: считаем длину страниц. Guard ограничивает число страниц (защита от
+  // бесконечного цикла / чрезмерной нагрузки). Имена полей — оборонительно.
+  async countOrders(from: string, to: string, limit = 1000): Promise<number> {
+    let count = 0;
+    let cursor: string | undefined;
+    for (let guard = 0; guard < 500; guard++) {
+      const body: Json = {
+        query: { park: { id: this.parkId, order: { booked_at: { from, to } } } },
+        limit,
+      };
+      if (cursor) body.cursor = cursor;
+      const data = await this.post("/v1/parks/orders/list", body);
+      const batch = (data.orders as Json[]) ?? [];
+      count += batch.length;
+      cursor = data.cursor as string | undefined;
+      if (!cursor || batch.length === 0) break;
+    }
+    return count;
+  }
+
   // Создать транзакцию на балансе водителя (ВЫПЛАТА). idempotencyKey -> X-Idempotency-Token.
   async createTransaction(args: {
     driverId: string;
