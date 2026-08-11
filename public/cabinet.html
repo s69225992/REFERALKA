@@ -337,7 +337,7 @@ const PAGES = {
     <div class="muted" style="margin-bottom:12px">Синхронизируются из Fleet API. У каждого — свой реф-код; можно вручную указать реферера.</div>
     <table><thead><tr><th class="num">#</th><th>Водитель</th><th>Код</th><th>Реферер</th><th>Тариф</th><th class="num">Комиссия парка</th></tr></thead><tbody>
     ${topDrivers.map(([n,v],i)=>{const r=referrals.find(x=>x.referred.includes(n.split(' ')[1]||'—'));return `<tr><td class="num muted">${i+1}</td><td>${n}</td><td><span class="code">${'ABCQ'[i%4]}${700+i}</span></td><td class="muted">${r?r.referrer:'—'}</td><td>${r?`<span class="trf">${tById(r.tariff).name}</span>`:'<span class="muted">—</span>'}</td><td class="num">${fmt(S(v))} ₽</td></tr>`}).join('')}
-    </tbody><tfoot><tr><td colspan="5" class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">Итого (показано ${topDrivers.length})</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${fmt(S(topDrivers.reduce((a,[,v])=>a+v,0)))} ₽</td></tr></tfoot></table>
+    </tbody><tfoot><tr><td colspan="5" class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">Итого по всем водителям (${activeDrivers})</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${fmt(S(parkCommissionWeek))} ₽</td></tr></tfoot></table>
     <div class="muted" style="margin-top:10px;font-size:12px">Показаны 10 из 200. В бою — поиск, фильтры, страницы.</div>`,
   referrals:()=>periodBar()+`
     <div class="muted" style="margin-bottom:12px">Связи «кто кого привёл» и тариф, на который привели. Реферер получает свой % с оборота приведённого.</div>
