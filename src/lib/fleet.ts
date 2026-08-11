@@ -107,10 +107,10 @@ export class FleetClient {
   // Кол-во заказов парка за период (ISO 8601), фильтр по booked_at, перебор cursor.
   // Best-effort: считаем длину страниц. Guard ограничивает число страниц (защита от
   // бесконечного цикла / чрезмерной нагрузки). Имена полей — оборонительно.
-  async countOrders(from: string, to: string, limit = 1000): Promise<number> {
+  async countOrders(from: string, to: string, limit = 500): Promise<number> {
     let count = 0;
     let cursor: string | undefined;
-    for (let guard = 0; guard < 500; guard++) {
+    for (let guard = 0; guard < 1000; guard++) {
       const body: Json = {
         query: { park: { id: this.parkId, order: { booked_at: { from, to } } } },
         limit,
