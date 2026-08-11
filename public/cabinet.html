@@ -152,21 +152,31 @@ let ordersCount = null;               // кол-во заказов за пер�
 let ordersByDriver = null;            // {driverId: кол-во заказов} за период (null = загрузка)
 const S = n => n*periodFactor;        // масштаб по периоду (только в демо-режиме)
 
+// Границы суток берём по таймзоне парка (Москва, UTC+3, без перехода на летнее
+// время), чтобы совпадать с отчётами Yandex Fleet. mskMidnightUTC(daysAgo) —
+// московская полночь (сегодня минус daysAgo), выраженная в реальном UTC.
+const PARK_TZ_OFFSET_MS = 3*60*60*1000;
+function mskMidnightUTC(daysAgo){
+  const d = new Date(Date.now() + PARK_TZ_OFFSET_MS);
+  d.setUTCHours(0,0,0,0);
+  d.setUTCDate(d.getUTCDate() - daysAgo);
+  return d.getTime() - PARK_TZ_OFFSET_MS;
+}
 function weekAgoRange(days){
-  const to = new Date(); to.setUTCHours(0,0,0,0);
-  const from = new Date(to); from.setUTCDate(from.getUTCDate()-days);
-  return [from.toISOString(), to.toISOString()];
+  const to = mskMidnightUTC(0);
+  const from = mskMidnightUTC(days);
+  return [new Date(from).toISOString(), new Date(to).toISOString()];
 }
 function setPeriod(f,label){
   periodLabel=label;
   if(LIVE){ const [a,b]=weekAgoRange(Math.round(f*7)); periodFactor=1; loadLive(a,b,label); }
   else { periodFactor=f; render(); }
 }
-// Диапазон одного дня: offset 0 = сегодня, 1 = вчера (окно ровно сутки).
+// Диапазон одного дня: offset 0 = сегодня, 1 = вчера (окно ровно московские сутки).
 function dayRange(offset){
-  const start=new Date(); start.setUTCHours(0,0,0,0); start.setUTCDate(start.getUTCDate()-offset);
-  const end=new Date(start); end.setUTCDate(end.getUTCDate()+1);
-  return [start.toISOString(), end.toISOString()];
+  const start=mskMidnightUTC(offset);
+  const end=start+86400000;
+  return [new Date(start).toISOString(), new Date(end).toISOString()];
 }
 function setDay(offset,label){
   periodLabel=label;
@@ -179,7 +189,7 @@ function applyCustom(){
   const days=Math.max(1,(new Date(b)-new Date(a))/86400000);
   const label=`${a.split('-').reverse().join('.')} – ${b.split('-').reverse().join('.')} (${Math.round(days)} дн.)`;
   periodLabel=label;
-  if(LIVE){ periodFactor=1; loadLive(a+'T00:00:00.000Z', b+'T00:00:00.000Z', label); }
+  if(LIVE){ periodFactor=1; loadLive(a+'T00:00:00.000+03:00', b+'T23:59:59.999+03:00', label); }
   else { periodFactor=days/7; render(); }
 }
 
