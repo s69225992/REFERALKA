@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Рефералка — кабинет</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --panel:#ffffff; --panel2:#eef2f7; --line:#e2e8f0;
+    --text:#1a2333; --muted:#64748b; --accent:#ffd21e; --accent2:#3b6fe0;
+    --green:#1a9e57; --amber:#c47d16; --red:#e0483d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px}
+  a{color:inherit;text-decoration:none}
+  .app{display:grid;grid-template-columns:250px 1fr;min-height:100vh;background:var(--bg)}
+  .side{background:var(--panel);border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:6px}
+  .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px}
+  .brand .logo{width:30px;height:30px;border-radius:8px;background:var(--accent);color:#111;display:grid;place-items:center;font-weight:800}
+  .brand b{font-size:15px}
+  .brand span{display:block;color:var(--muted);font-size:11px}
+  .nav{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;color:var(--muted);cursor:pointer}
+  .nav a .ic{width:18px;text-align:center}
+  .nav a:hover{background:var(--panel2);color:var(--text)}
+  .nav a.active{background:var(--panel2);color:var(--text);box-shadow:inset 3px 0 0 var(--accent)}
+  .side .spacer{flex:1}
+  .roleswitch{margin-top:8px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:6px}
+  .roleswitch .lbl{color:var(--muted);font-size:11px;padding:4px 6px}
+  .roleswitch button{width:100%;text-align:left;background:transparent;color:var(--muted);border:0;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px}
+  .roleswitch button.on{background:var(--accent);color:#111;font-weight:700}
+  .main{padding:24px 30px;overflow:auto}
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .top h1{font-size:22px;margin:0}
+  .top .who{display:flex;align-items:center;gap:10px;color:var(--muted)}
+  .top .who .av{width:32px;height:32px;border-radius:50%;background:var(--accent2);display:grid;place-items:center;color:#fff;font-weight:700}
+  /* period bar */
+  .period{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:18px;box-shadow:0 1px 3px rgba(16,32,60,.05)}
+  .period .p{background:var(--panel2);border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+  .period .p.on{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:600}
+  .period input[type=date]{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;color:var(--text);background:var(--panel)}
+  .period .lab{margin-left:auto;color:var(--muted);font-size:12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(16,32,60,.05)}
+  .card .lbl{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .card .val{font-size:24px;font-weight:700}
+  .card .sub{color:var(--muted);font-size:12px;margin-top:6px}
+  .sec{font-size:15px;font-weight:600;margin:24px 0 12px}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(16,32,60,.05)}
+  th,td{text-align:left;padding:12px 14px;font-size:13px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:500}
+  tr:last-child td{border-bottom:none}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .badge{font-size:11px;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .badge.paid{background:rgba(26,158,87,.13);color:var(--green)}
+  .badge.pending{background:rgba(196,125,22,.14);color:var(--amber)}
+  .badge.active{background:rgba(59,111,224,.13);color:var(--accent2)}
+  .badge.off{background:rgba(100,116,139,.14);color:var(--muted)}
+  .trf{font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(59,111,224,.10);color:var(--accent2);border:1px solid rgba(59,111,224,.2);white-space:nowrap}
+  .code{font-family:ui-monospace,monospace;background:var(--panel2);color:#0f2a5e;border:1px solid var(--line);padding:4px 10px;border-radius:8px;display:inline-block}
+  .row2{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}
+  .bar{display:flex;align-items:center;gap:10px;margin:9px 0}
+  .bar .nm{width:150px;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar .track{flex:1;background:var(--panel2);border-radius:6px;height:12px;overflow:hidden}
+  .bar .fill{height:100%;background:linear-gradient(90deg,var(--accent2),#7aa2ff)}
+  .bar .vv{width:86px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
+  .btn{background:var(--accent);color:#111;border:0;border-radius:10px;padding:10px 16px;font-weight:700;cursor:pointer}
+  .btn.sec{background:var(--panel2);color:var(--text);border:1px solid var(--line);font-weight:500}
+  .muted{color:var(--muted)}
+  .hero{background:linear-gradient(135deg,#eaf1ff,#f7faff);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:20px}
+  .hero .big{font-size:30px;font-weight:800}
+  .pill{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 1px 3px rgba(16,32,60,.05)}
+  .step .n{width:28px;height:28px;border-radius:8px;background:var(--accent);color:#111;font-weight:800;display:grid;place-items:center;margin-bottom:10px}
+  .tag{display:inline-block;font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin-left:8px}
+  .tariffcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+  .tcard{border:2px solid var(--line);border-radius:14px;padding:16px;cursor:pointer;background:var(--panel)}
+  .tcard.sel{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(59,111,224,.12)}
+  .tcard .p1{font-size:22px;font-weight:800}
+  .tcard .p2{color:var(--green);font-weight:700;margin-top:2px}
+  .doc{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 26px;max-width:820px;line-height:1.6;box-shadow:0 1px 3px rgba(16,32,60,.05)}
+  .doc h3{margin:18px 0 6px;font-size:15px}
+  .doc p{margin:6px 0;color:#2a3446}
+  .doc .small{color:var(--muted);font-size:12px}
+  select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--panel);color:var(--text)}
+  .note{background:#fff8e1;border:1px solid #f0e3b0;color:#7a5c00;border-radius:10px;padding:10px 14px;font-size:13px;margin:10px 0}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">Р</div>
+      <div><b>Рефералка</b><span id="brandSub">Таксопарк «Прайм»</span></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="spacer"></div>
+    <div class="roleswitch">
+      <div class="lbl">Роль (демо-переключатель)</div>
+      <button id="rM" onclick="setRole('manager')">🧑‍💼 Кабинет менеджера</button>
+      <button id="rR" onclick="setRole('referrer')">🚗 Кабинет реферера</button>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <h1 id="pageTitle">Обзор</h1>
+      <div class="who"><div class="av" id="avatar">М</div><div><div id="whoName">Менеджер парка</div><div style="font-size:12px" id="whoRole">Администратор</div></div></div>
+    </div>
+    <div id="content"></div>
+  </main>
+</div>
+
+<script>
+// ===== Тарифы приглашения (парк % / реферер %) =====
+const TARIFFS = [
+  {id:'t31',  park:3, ref:1.0, name:'3 / 1'},
+  {id:'t415', park:4, ref:1.5, name:'4 / 1,5'},
+  {id:'t52',  park:5, ref:2.0, name:'5 / 2'},
+];
+const tById = id => TARIFFS.find(t=>t.id===id);
+
+// ===== Данные из теста API (комиссия парка = partner_ride_fee, 3%) =====
+const activeDrivers = 200;
+const parkCommissionWeek = 43544.55;      // текущая комиссия парка за неделю
+const topDrivers = [
+  ["Щербаченко Максим",5236.00],["Лебедев Эльдар",4791.75],["Гохман Игорь",4595.88],
+  ["Павлинов Виталий",4502.08],["Орловский Николай",4249.55],["Абдулов Олимджон",3831.43],
+  ["Маркосян Николай",3663.50],["Корнеев Данил",2748.52],["Овсепян Карен",2574.63],["Мударов Анзор",2173.15]
+];
+// оборот = комиссия / 3% (базовая ставка парка)
+const turnoverOf = comm => comm/0.03;
+
+// Рефералы: у каждого свой тариф (на какой привели)
+const referrals = [
+  {referrer:"Карен Овсепян", referred:"Данил Корнеев",   comm:2748.52, tariff:'t31',  status:"active"},
+  {referrer:"Карен Овсепян", referred:"Анзор Мударов",    comm:2173.15, tariff:'t415', status:"active"},
+  {referrer:"Карен Овсепян", referred:"Олимджон Абдулов", comm:3831.43, tariff:'t52',  status:"active"},
+  {referrer:"Игорь Гохман",  referred:"Николай Маркосян", comm:3663.50, tariff:'t31',  status:"active"},
+  {referrer:"Игорь Гохман",  referred:"Виталий Павлинов", comm:4502.08, tariff:'t415', status:"active"},
+  {referrer:"Эльдар Лебедев",referred:"Николай Орловский",comm:4249.55, tariff:'t31',  status:"active"},
+  {referrer:"Максим Щербаченко", referred:"Новый водитель", comm:0,      tariff:'t31',  status:"off"},
+];
+const fmt = n => (n).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
+// доход реферера = его % с оборота приведённого
+const refEarn = r => { const t=tById(r.tariff); return Math.round(turnoverOf(r.comm)*t.ref/100*100)/100; };
+
+// ===== Период =====
+let periodFactor = 1, periodLabel = "Эта неделя (04.08 – 11.08)";
+function setPeriod(f,label){ periodFactor=f; periodLabel=label; render(); }
+function applyCustom(){
+  const a=document.getElementById('cFrom').value, b=document.getElementById('cTo').value;
+  if(!a||!b){return;}
+  const days=Math.max(1,(new Date(b)-new Date(a))/86400000);
+  periodFactor=days/7; periodLabel=`${a.split('-').reverse().join('.')} – ${b.split('-').reverse().join('.')} (${Math.round(days)} дн.)`;
+  render();
+}
+const S = n => n*periodFactor; // масштаб по периоду
+function periodBar(active){
+  const presets=[[1,'Неделя'],[2,'2 недели'],[4.345,'Месяц'],[13,'Квартал']];
+  return `<div class="period">
+    ${presets.map(([f,l])=>`<button class="p ${Math.abs(periodFactor-f)<0.01?'on':''}" onclick="setPeriod(${f},'${l}')">${l}</button>`).join('')}
+    <span class="muted" style="font-size:12px">или</span>
+    <input type="date" id="cFrom" value="2026-07-11"><span class="muted">–</span><input type="date" id="cTo" value="2026-08-11">
+    <button class="p" onclick="applyCustom()">Применить</button>
+    <span class="lab">Период: ${periodLabel}</span>
+  </div>`;
+}
+
+// ===== Текущий реферер =====
+const me = {name:"Карен Овсепян", code:"KAREN-7F3", link:"https://park-prime.app/i/KAREN-7F3", inviteTariff:'t31', ofertaAccepted:true};
+const myRefs = ()=>referrals.filter(r=>r.referrer==="Карен Овсепян");
+
+// ===== Меню =====
+const MENUS = {
+  manager:[
+    ["overview","📊","Обзор"],["drivers","🧑‍🔧","Водители"],["referrals","🔗","Рефералы"],
+    ["accruals","💰","Начисления"],["payouts","🏦","Выплаты"],["tariffs","🏷️","Тарифы"],
+    ["oferta","📄","Оферта"],["settings","⚙️","Настройки"]
+  ],
+  referrer:[
+    ["r_home","🏠","Главная"],["r_code","🎟️","Пригласить"],["r_refs","👥","Мои рефералы"],
+    ["r_hist","🧾","История начислений"],["r_oferta","📄","Оферта"],["r_how","💡","Как это работает"]
+  ]
+};
+let role="manager", page="overview";
+function setRole(r){ role=r; page=MENUS[r][0][0]; render(); }
+function go(p){ page=p; render(); }
+function setInviteTariff(id){ me.inviteTariff=id; render(); }
+
+function render(){
+  document.getElementById('rM').className = role==='manager'?'on':'';
+  document.getElementById('rR').className = role==='referrer'?'on':'';
+  document.getElementById('brandSub').textContent = role==='manager'?'Таксопарк «Прайм»':'Личный кабинет водителя';
+  if(role==='manager'){document.getElementById('avatar').textContent='М';document.getElementById('avatar').style.background='#3b6fe0';document.getElementById('whoName').textContent='Менеджер парка';document.getElementById('whoRole').textContent='Администратор';}
+  else{document.getElementById('avatar').textContent='К';document.getElementById('avatar').style.background='#1a9e57';document.getElementById('whoName').textContent=me.name;document.getElementById('whoRole').textContent='Реферер (агент)';}
+  const nav=document.getElementById('nav');nav.innerHTML='';
+  MENUS[role].forEach(([id,ic,label])=>{const a=document.createElement('a');a.className=(id===page?'active':'');a.onclick=()=>go(id);a.innerHTML=`<span class="ic">${ic}</span> ${label}`;nav.appendChild(a);});
+  document.getElementById('pageTitle').textContent = MENUS[role].find(m=>m[0]===page)[2];
+  document.getElementById('content').innerHTML = PAGES[page]();
+}
+
+const PAGES = {
+  // ===== Менеджер =====
+  overview:()=>{
+    const pend = S(referrals.filter(r=>r.status==='active').reduce((s,r)=>s+refEarn(r),0))*0.4;
+    return periodBar() + `
+    <div class="grid">
+      <div class="card"><div class="lbl">Активных водителей</div><div class="val">${activeDrivers}</div><div class="sub">по данным Fleet API</div></div>
+      <div class="card"><div class="lbl">Комиссия парка</div><div class="val">${fmt(S(parkCommissionWeek))} ₽</div><div class="sub">за выбранный период</div></div>
+      <div class="card"><div class="lbl">Активных рефералов</div><div class="val">${referrals.filter(r=>r.status==='active').length}</div><div class="sub">пар «привёл → работает»</div></div>
+      <div class="card"><div class="lbl">К выплате агентам</div><div class="val" style="color:var(--amber)">${fmt(pend)} ₽</div><div class="sub">агентское вознаграждение</div></div>
+    </div>
+    <div class="row2">
+      <div><div class="sec">Топ водителей по комиссии парка</div>
+        <div class="card">${topDrivers.map(([n,v])=>`<div class="bar"><div class="nm">${n}</div><div class="track"><div class="fill" style="width:${v/topDrivers[0][1]*100}%"></div></div><div class="vv">${fmt(S(v))}</div></div>`).join('')}</div>
+      </div>
+      <div><div class="sec">Расходы на агентов</div>
+        <div class="card">
+          <div class="lbl">Выплаты рефереам (агентское вознаграждение)</div>
+          <div class="val" style="margin:6px 0;color:var(--accent2)">${fmt(S(referrals.filter(r=>r.status==='active').reduce((s,r)=>s+refEarn(r),0)))} ₽</div>
+          <div class="sub">учитывается как расходы компании</div>
+          <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+          <div class="lbl">Тарифы приглашения</div>
+          <div style="margin-top:6px">${TARIFFS.map(t=>`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Парк ${t.park}%</span><span class="muted">реферер ${String(t.ref).replace('.',',')}% с оборота</span></div>`).join('')}</div>
+        </div>
+      </div>
+    </div>`;
+  },
+  drivers:()=>periodBar()+`
+    <div class="muted" style="margin-bottom:12px">Синхронизируются из Fleet API. У каждого — свой реф-код; можно вручную указать реферера.</div>
+    <table><thead><tr><th>Водитель</th><th>Код</th><th>Реферер</th><th>Тариф</th><th class="num">Комиссия парка</th></tr></thead><tbody>
+    ${topDrivers.map(([n,v],i)=>{const r=referrals.find(x=>x.referred.includes(n.split(' ')[1]||'—'));return `<tr><td>${n}</td><td><span class="code">${'ABCQ'[i%4]}${700+i}</span></td><td class="muted">${r?r.referrer:'—'}</td><td>${r?`<span class="trf">${tById(r.tariff).name}</span>`:'<span class="muted">—</span>'}</td><td class="num">${fmt(S(v))} ₽</td></tr>`}).join('')}
+    </tbody></table>
+    <div class="muted" style="margin-top:10px;font-size:12px">Показаны 10 из 200. В бою — поиск, фильтры, страницы.</div>`,
+  referrals:()=>periodBar()+`
+    <div class="muted" style="margin-bottom:12px">Связи «кто кого привёл» и тариф, на который привели. Реферер получает свой % с оборота приведённого.</div>
+    <table><thead><tr><th>Реферер (агент)</th><th>Привёл</th><th>Тариф</th><th class="num">Оборот реферала</th><th class="num">Комиссия парка</th><th class="num">Агенту</th><th>Статус</th></tr></thead><tbody>
+    ${referrals.map(r=>{const t=tById(r.tariff);return `<tr><td>${r.referrer}</td><td>${r.referred}</td><td><span class="trf">${t.name}</span></td><td class="num">${r.comm?fmt(S(turnoverOf(r.comm))):'—'} ₽</td><td class="num">${r.comm?fmt(S(r.comm)):'—'} ₽</td><td class="num" style="color:var(--green)">${r.comm?fmt(S(refEarn(r))):'—'} ₽</td><td><span class="badge ${r.status==='active'?'active':'off'}">${r.status==='active'?'активен':'не работает'}</span></td></tr>`}).join('')}
+    </tbody></table>`,
+  accruals:()=>periodBar()+`
+    <div class="muted" style="margin-bottom:12px">Расчёт по итогам периода. Защита от двойных выплат — по idempotency-ключу.</div>
+    <table><thead><tr><th>Период</th><th>Агент</th><th>За водителя</th><th>Тариф</th><th class="num">Оборот</th><th class="num">Начислено</th><th>Статус</th></tr></thead><tbody>
+    ${referrals.filter(r=>r.comm>0).map((r,i)=>{const t=tById(r.tariff);return `<tr><td>${periodLabel.split('(')[0]}</td><td>${r.referrer}</td><td>${r.referred}</td><td><span class="trf">${t.name}</span></td><td class="num">${fmt(S(turnoverOf(r.comm)))} ₽</td><td class="num">${fmt(S(refEarn(r)))} ₽</td><td><span class="badge ${i%3===0?'pending':'paid'}">${i%3===0?'ожидает':'выплачено'}</span></td></tr>`}).join('')}
+    </tbody></table>
+    <div style="margin-top:14px"><button class="btn">Запустить расчёт за период</button> <button class="btn sec">Выгрузить CSV (для бухгалтерии)</button></div>`,
+  payouts:()=>periodBar()+`
+    <div class="grid">
+      <div class="card"><div class="lbl">Выплачено агентам</div><div class="val" style="color:var(--green)">${fmt(S(referrals.filter(r=>r.comm>0).reduce((s,r)=>s+refEarn(r),0))*0.6)} ₽</div><div class="sub">за период</div></div>
+      <div class="card"><div class="lbl">Ожидает выплаты</div><div class="val" style="color:var(--amber)">${fmt(S(referrals.filter(r=>r.comm>0).reduce((s,r)=>s+refEarn(r),0))*0.4)} ₽</div></div>
+      <div class="card"><div class="lbl">Проведено транзакций</div><div class="val">${Math.round(S(6))}</div></div>
+    </div>
+    <div class="sec">Журнал выплат (агентское вознаграждение)</div>
+    <table><thead><tr><th>Дата</th><th>Агент</th><th class="num">Сумма</th><th>Fleet-транзакция</th><th>Статус</th></tr></thead><tbody>
+    ${referrals.filter(r=>r.comm>0).map((r,i)=>`<tr><td>1${i}.08.2026</td><td>${r.referrer}</td><td class="num">${fmt(S(refEarn(r)))} ₽</td><td class="code">tx_${1000+i}</td><td><span class="badge ${i%3===0?'pending':'paid'}">${i%3===0?'в очереди':'проведено'}</span></td></tr>`).join('')}
+    </tbody></table>`,
+  tariffs:()=>`
+    <div class="muted" style="margin-bottom:12px">Тарифы приглашения. Реферер при добавлении водителя выбирает, на какой тариф его приводит: чем выше комиссия парка — тем выше вознаграждение агента.</div>
+    <div class="tariffcards">
+    ${TARIFFS.map(t=>`<div class="tcard sel"><div class="muted" style="font-size:12px">Комиссия парка</div><div class="p1">${t.park}%</div><div class="p2">агент ${String(t.ref).replace('.',',')}% с оборота</div><div class="muted" style="font-size:12px;margin-top:8px">пожизненно, пока водитель работает</div></div>`).join('')}
+      <div class="tcard" style="border-style:dashed;display:grid;place-items:center;color:var(--muted);cursor:pointer">+ добавить тариф</div>
+    </div>
+    <div class="note">Вознаграждение агента считается в процентах от оборота приведённого водителя и выплачивается как агентское — учитывается в расходах компании.</div>`,
+  oferta:()=>ofertaDoc(false),
+  settings:()=>`
+    <div class="card" style="max-width:660px">
+      <div class="sec" style="margin-top:0">Параметры программы</div>
+      <div class="lbl">Базовая ставка</div>
+      <div style="margin:6px 0 16px">Реферер (агент) получает <b>1% с оборота</b> приведённого водителя по тарифу «3 / 1». Другие тарифы — в разделе «Тарифы».</div>
+      <div class="lbl">Категории комиссии парка (Fleet API)</div>
+      <div style="margin:6px 0 16px"><span class="code">partner_ride_fee</span> <span class="code">partner_subscription_fee</span> <span class="code">partner_bonus_fee</span></div>
+      <div class="lbl">Периодичность расчёта</div>
+      <div style="margin:6px 0 16px">Раз в неделю, понедельник 03:00 (МСК)</div>
+      <div class="lbl">Учёт выплат</div>
+      <div style="margin:6px 0 16px">Агентское вознаграждение · расходы компании · выгрузка для бухгалтерии</div>
+      <div class="lbl">Fleet API</div>
+      <div style="margin:6px 0"><span class="badge paid">подключён</span> <span class="muted">парк «Прайм»</span></div>
+      <div style="margin-top:18px"><button class="btn">Сохранить</button></div>
+    </div>`,
+
+  // ===== Реферер =====
+  r_home:()=>{
+    const mine=myRefs(); const earn=mine.reduce((s,r)=>s+(r.comm>0?refEarn(r):0),0);
+    return periodBar()+`
+    <div class="hero">
+      <div><div class="muted">Заработано на рефералах</div><div class="big" style="color:var(--green)">${fmt(S(earn))} ₽</div><div class="muted">процент с оборота приведённых водителей — пожизненно</div></div>
+      <div style="text-align:right"><div class="muted">Приведено водителей</div><div class="big">${mine.length}</div></div>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="lbl">Выплачено</div><div class="val" style="color:var(--green)">${fmt(S(earn)*0.6)} ₽</div></div>
+      <div class="card"><div class="lbl">Ожидает выплаты</div><div class="val" style="color:var(--amber)">${fmt(S(earn)*0.4)} ₽</div></div>
+      <div class="card"><div class="lbl">Активных рефералов</div><div class="val">${mine.filter(r=>r.status==='active').length}</div></div>
+    </div>
+    <div class="sec">Приглашай и зарабатывай</div>
+    <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span class="muted">Твой код:</span> <span class="code" style="font-size:16px">${me.code}</span><button class="btn" onclick="go('r_code')">Пригласить водителя</button></div>`;
+  },
+  r_code:()=>{
+    const t=tById(me.inviteTariff);
+    return `
+    <div class="card" style="max-width:640px">
+      <div class="sec" style="margin-top:0">Выбери тариф, на который приглашаешь</div>
+      <div class="muted" style="font-size:13px;margin-bottom:12px">Чем выше комиссия парка — тем выше твой процент. Тариф закрепляется за приведённым водителем.</div>
+      <div class="tariffcards">
+      ${TARIFFS.map(x=>`<div class="tcard ${me.inviteTariff===x.id?'sel':''}" onclick="setInviteTariff('${x.id}')"><div class="muted" style="font-size:12px">Парк</div><div class="p1">${x.park}%</div><div class="p2">тебе ${String(x.ref).replace('.',',')}% с оборота</div></div>`).join('')}
+      </div>
+      <div style="margin:18px 0 6px" class="muted">Твоя ссылка (тариф «${t.name}»):</div>
+      <div class="pill" style="word-break:break-all">${me.link}?t=${me.inviteTariff}</div>
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn">Скопировать ссылку</button><button class="btn sec">Отправить в WhatsApp</button></div>
+      <div class="note" style="margin-top:16px">Выплаты тебе — это агентское вознаграждение. Налоги с него ты платишь сам (самозанятость/НПД). Подробнее — в разделе «Оферта».</div>
+    </div>`;
+  },
+  r_refs:()=>periodBar()+`
+    <div class="muted" style="margin-bottom:12px">Кого ты привёл и на каком тарифе. Пока водитель работает — тебе капает твой процент.</div>
+    <table><thead><tr><th>Водитель</th><th>Тариф</th><th>Статус</th><th class="num">Его оборот</th><th class="num">Твой %</th><th class="num">Тебе</th></tr></thead><tbody>
+    ${myRefs().map(r=>{const t=tById(r.tariff);return `<tr><td>${r.referred}</td><td><span class="trf">${t.name}</span></td><td><span class="badge ${r.status==='active'?'active':'off'}">${r.status==='active'?'работает':'не работает'}</span></td><td class="num">${fmt(S(turnoverOf(r.comm)))} ₽</td><td class="num">${String(t.ref).replace('.',',')}%</td><td class="num" style="color:var(--green)">${fmt(S(refEarn(r)))} ₽</td></tr>`}).join('')}
+    </tbody></table>`,
+  r_hist:()=>periodBar()+`
+    <table><thead><tr><th>Период</th><th>За водителя</th><th>Тариф</th><th class="num">Начислено</th><th>Статус</th></tr></thead><tbody>
+    ${myRefs().map((r,i)=>{const t=tById(r.tariff);return `<tr><td>${periodLabel.split('(')[0]}</td><td>${r.referred}</td><td><span class="trf">${t.name}</span></td><td class="num">${fmt(S(refEarn(r)))} ₽</td><td><span class="badge ${i===0?'pending':'paid'}">${i===0?'ожидает':'выплачено'}</span></td></tr>`}).join('')}
+    </tbody></table>
+    <div class="muted" style="margin-top:10px;font-size:12px">Выплаты приходят на твой баланс в Яндекс Про.</div>`,
+  r_oferta:()=>ofertaDoc(true),
+  r_how:()=>`
+    <div class="steps">
+      <div class="step"><div class="n">1</div><b>Выбери тариф и поделись</b><div class="muted" style="margin-top:6px">Например, парк 3% / тебе 1% с оборота.</div></div>
+      <div class="step"><div class="n">2</div><b>Он подключается</b><div class="muted" style="margin-top:6px">По твоей ссылке, тариф закрепляется за ним.</div></div>
+      <div class="step"><div class="n">3</div><b>Он работает</b><div class="muted" style="margin-top:6px">Выполняет заказы — идёт оборот.</div></div>
+      <div class="step"><div class="n">4</div><b>Тебе капает %</b><div class="muted" style="margin-top:6px">Твой процент с его оборота — пожизненно, автоматически.</div></div>
+    </div>
+    <div class="card" style="margin-top:18px"><b>Пример заработка</b><div class="muted" style="margin-top:8px">3 активных водителя на разных тарифах — уже <b style="color:var(--green)">${fmt(myRefs().reduce((s,r)=>s+(r.comm>0?refEarn(r):0),0))} ₽ за неделю</b> пассивного дохода.</div></div>`
+};
+
+// ===== Оферта (агентский договор) =====
+function ofertaDoc(forReferrer){
+  return `
+  <div class="doc">
+    <h2 style="margin-top:0">Публичная оферта — агентский договор</h2>
+    <p class="small">Редакция от 11.08.2026 · Таксопарк «Прайм»</p>
+    <div class="note">Черновик-шаблон. Перед публикацией проверьте у юриста и приведите в соответствие с вашими реквизитами и законодательством.</div>
+    <h3>1. Термины</h3>
+    <p><b>Компания</b> — таксопарк «Прайм». <b>Агент</b> — водитель-реферер, привлекающий других водителей. <b>Приведённый водитель</b> — водитель, подключившийся по ссылке/коду Агента.</p>
+    <h3>2. Предмет</h3>
+    <p>Агент за вознаграждение привлекает водителей к сотрудничеству с Компанией. Отношения носят агентский характер; Агент действует от своего имени.</p>
+    <h3>3. Вознаграждение</h3>
+    <p>За каждого приведённого водителя, выполняющего заказы, Компания выплачивает Агенту вознаграждение в размере, определяемом выбранным тарифом — процент от оборота приведённого водителя (например, 1% при тарифе «3/1»). Вознаграждение начисляется пожизненно, пока приведённый водитель работает.</p>
+    <h3>4. Порядок расчётов</h3>
+    <p>Расчётный период — неделя. Вознаграждение начисляется по итогам периода на баланс Агента. Компания вправе удерживать/возвращать ошибочные начисления.</p>
+    <h3>5. Налоги</h3>
+    <p>Агент самостоятельно уплачивает налоги и сборы с полученного вознаграждения (самозанятость/НПД либо иной применимый режим). Компания не является налоговым агентом, если иное не предусмотрено законом.</p>
+    <h3>6. Учёт</h3>
+    <p>Выплаты являются агентским вознаграждением и учитываются Компанией как расходы.</p>
+    <h3>7. Акцепт</h3>
+    <p>Регистрация в кабинете и нажатие «Принять оферту» означают полное и безоговорочное согласие Агента с условиями настоящей оферты.</p>
+    <div style="margin-top:18px">
+    ${forReferrer
+      ? (me.ofertaAccepted
+          ? `<span class="badge paid">✓ Оферта принята</span> <span class="muted">11.08.2026</span>`
+          : `<button class="btn" onclick="me.ofertaAccepted=true;render()">Принять оферту</button>`)
+      : `<button class="btn">Редактировать текст</button> <button class="btn sec">Опубликовать новую редакцию</button>`}
+    </div>
+  </div>`;
+}
+
+render();
+</script>
+</body>
+</html>

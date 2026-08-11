@@ -1,0 +1,108 @@
+// Схема базы реферальной программы.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")   // пул (Supabase pooler, 6543) — для приложения
+  directUrl = env("DIRECT_URL")     // прямое (5432) — для миграций/db push
+}
+
+model Driver {
+  id             Int       @id @default(autoincrement())
+  yandexDriverId String    @unique @map("yandex_driver_id")
+  phone          String?
+  fullName       String?   @map("full_name")
+  referralCode   String    @unique @map("referral_code")
+  referredBy     Int?      @map("referred_by")
+  status         String    @default("active")
+  joinedAt       DateTime? @map("joined_at")
+  ofertaAcceptedAt DateTime? @map("oferta_accepted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // связи
+  referrer          Driver?             @relation("Referrals", fields: [referredBy], references: [id])
+  invited           Driver[]            @relation("Referrals")
+  asReferrerLinks   Referral[]          @relation("ReferrerLinks")
+  asReferredLink    Referral?           @relation("ReferredLink")
+  snapshots         CommissionSnapshot[]
+  accrualsAsReferrer ReferralAccrual[]  @relation("AccrualReferrer")
+  accrualsAsReferred ReferralAccrual[]  @relation("AccrualReferred")
+
+  @@map("drivers")
+}
+
+model Referral {
+  id         Int      @id @default(autoincrement())
+  referrerId Int      @map("referrer_id")
+  referredId Int      @unique @map("referred_id")
+  tariffCode String   @default("3_1") @map("tariff_code")
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  referrer Driver @relation("ReferrerLinks", fields: [referrerId], references: [id])
+  referred Driver @relation("ReferredLink", fields: [referredId], references: [id])
+
+  @@index([referrerId])
+  @@map("referrals")
+}
+
+// Тариф приглашения: комиссия парка % и вознаграждение агента % (с оборота).
+model Tariff {
+  id       Int     @id @default(autoincrement())
+  code     String  @unique              // напр. "3_1"
+  name     String                       // напр. "3 / 1"
+  parkRate Decimal @map("park_rate") @db.Decimal(6, 3) // % парка (напр. 3.000)
+  refRate  Decimal @map("ref_rate")  @db.Decimal(6, 3) // % агента (напр. 1.000)
+  active   Boolean @default(true)
+  sort     Int     @default(0)
+
+  @@map("tariffs")
+}
+
+model CommissionSnapshot {
+  id                   Int      @id @default(autoincrement())
+  referredId           Int      @map("referred_id")
+  periodFrom           DateTime @map("period_from")
+  periodTo             DateTime @map("period_to")
+  parkCommissionAmount Decimal  @default(0) @map("park_commission_amount") @db.Decimal(12, 2)
+  pulledAt             DateTime @default(now()) @map("pulled_at")
+
+  referred Driver @relation(fields: [referredId], references: [id])
+
+  @@unique([referredId, periodFrom, periodTo])
+  @@map("commission_snapshots")
+}
+
+model ReferralAccrual {
+  id             Int      @id @default(autoincrement())
+  referrerId     Int      @map("referrer_id")
+  referredId     Int      @map("referred_id")
+  periodFrom     DateTime @map("period_from")
+  periodTo       DateTime @map("period_to")
+  baseAmount     Decimal  @map("base_amount") @db.Decimal(12, 2)
+  rate           Decimal  @db.Decimal(10, 8)
+  amount         Decimal  @db.Decimal(12, 2)
+  status         String   @default("pending") // pending | paid | failed
+  idempotencyKey String   @unique @map("idempotency_key")
+  yandexTxId     String?  @map("yandex_tx_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  referrer Driver @relation("AccrualReferrer", fields: [referrerId], references: [id])
+  referred Driver @relation("AccrualReferred", fields: [referredId], references: [id])
+
+  @@index([referrerId])
+  @@map("referral_accruals")
+}
+
+model PayoutLog {
+  id        Int      @id @default(autoincrement())
+  accrualId Int?     @map("accrual_id")
+  request   String?
+  response  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("payout_log")
+}
