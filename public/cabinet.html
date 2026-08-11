@@ -160,6 +160,17 @@ function setPeriod(f,label){
   if(LIVE){ const [a,b]=weekAgoRange(Math.round(f*7)); periodFactor=1; loadLive(a,b,label); }
   else { periodFactor=f; render(); }
 }
+// Диапазон одного дня: offset 0 = сегодня, 1 = вчера (окно ровно сутки).
+function dayRange(offset){
+  const start=new Date(); start.setUTCHours(0,0,0,0); start.setUTCDate(start.getUTCDate()-offset);
+  const end=new Date(start); end.setUTCDate(end.getUTCDate()+1);
+  return [start.toISOString(), end.toISOString()];
+}
+function setDay(offset,label){
+  periodLabel=label;
+  if(LIVE){ const [a,b]=dayRange(offset); loadLive(a,b,label); }
+  else { periodFactor=1/7; render(); }
+}
 function applyCustom(){
   const a=document.getElementById('cFrom').value, b=document.getElementById('cTo').value;
   if(!a||!b){return;}
@@ -249,9 +260,12 @@ function showLogin(msg){
   document.getElementById('loginLater').onclick=(e)=>{ e.preventDefault(); ov.remove(); setBadge('demo'); };
 }
 function periodBar(active){
+  const days=[[0,'Сегодня'],[1,'Вчера']];
   const presets=[[1,'Неделя'],[2,'2 недели'],[4.345,'Месяц'],[13,'Квартал']];
+  const on=l=>(periodLabel===l || (l==='Неделя' && periodLabel==='Эта неделя'))?'on':'';
   return `<div class="period">
-    ${presets.map(([f,l])=>`<button class="p ${Math.abs(periodFactor-f)<0.01?'on':''}" onclick="setPeriod(${f},'${l}')">${l}</button>`).join('')}
+    ${days.map(([o,l])=>`<button class="p ${on(l)}" onclick="setDay(${o},'${l}')">${l}</button>`).join('')}
+    ${presets.map(([f,l])=>`<button class="p ${on(l)}" onclick="setPeriod(${f},'${l}')">${l}</button>`).join('')}
     <span class="muted" style="font-size:12px">или</span>
     <input type="date" id="cFrom" value="2026-07-11"><span class="muted">–</span><input type="date" id="cTo" value="2026-08-11">
     <button class="p" onclick="applyCustom()">Применить</button>
