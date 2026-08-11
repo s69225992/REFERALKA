@@ -142,16 +142,23 @@ export class FleetClient {
     return count;
   }
 
-  // Заказы за период с группировкой по водителю. Один проход по orders/list.
-  // Возвращает { total, byDriver: {driverId: count}, sampleKeys }.
-  // sampleKeys — ключи первого заказа, для диагностики имён полей (id водителя).
+  // Только УСПЕШНО ЗАВЕРШЁННЫЕ заказы за период, с группировкой по водителю.
+  // Один проход по orders/list. total и byDriver считают лишь заказы со статусом
+  // "complete" (отменённые/просроченные/неуспешные — исключаются).
+  // statusCounts — разбивка по всем статусам (диагностика), sampleKeys — ключи заказа.
   async ordersByDriver(
     from: string,
     to: string,
     limit = 500,
-  ): Promise<{ total: number; byDriver: Record<string, number>; sampleKeys: string[] }> {
+  ): Promise<{
+    total: number;
+    byDriver: Record<string, number>;
+    statusCounts: Record<string, number>;
+    sampleKeys: string[];
+  }> {
     let total = 0;
     const byDriver: Record<string, number> = {};
+    const statusCounts: Record<string, number> = {};
     let sampleKeys: string[] = [];
     let cursor: string | undefined;
     for (let guard = 0; guard < 1000; guard++) {
@@ -164,8 +171,11 @@ export class FleetClient {
       const batch = (data.orders as Json[]) ?? [];
       if (sampleKeys.length === 0 && batch[0]) sampleKeys = Object.keys(batch[0] as Json);
       for (const raw of batch) {
-        total++;
         const o = raw as Json;
+        const status = String(o.status ?? "");
+        statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+        if (status !== "complete") continue; // только успешно завершённые
+        total++;
         const dp = o.driver_profile as Json | undefined;
         const perf = o.performer as Json | undefined;
         const perfDp = perf?.driver_profile as Json | undefined;
@@ -181,7 +191,7 @@ export class FleetClient {
       if (!cursor || batch.length === 0) break;
       await new Promise((r) => setTimeout(r, 250)); // пауза между страницами против 429
     }
-    return { total, byDriver, sampleKeys };
+    return { total, byDriver, statusCounts, sampleKeys };
   }
 
   // Создать транзакцию на балансе водителя (ВЫПЛАТА). idempotencyKey -> X-Idempotency-Token.
