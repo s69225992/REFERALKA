@@ -10,12 +10,22 @@ import { buildTestReport } from "@/lib/services/report";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
+// Доступ: админ-токен (полный) ИЛИ read-only токен кабинета (CABINET_TOKEN).
+// Эндпоинт только читает (строит отчёт, без записи), поэтому read-only токен безопасен.
 function authed(req: NextRequest): boolean {
-  if (!config.adminToken) return false;
   const header = req.headers.get("authorization");
-  if (header === `Bearer ${config.adminToken}`) return true;
-  const token = req.nextUrl.searchParams.get("token");
-  return token === config.adminToken;
+  const q = req.nextUrl.searchParams.get("token");
+  const tokens = [config.adminToken, process.env.CABINET_TOKEN || ""].filter(Boolean);
+  for (const t of tokens) {
+    if (header === `Bearer ${t}`) return true;
+    if (q === t) return true;
+  }
+  return false;
+}
+
+// Fleet требует дату-время; если пришла только дата (YYYY-MM-DD) — дополняем.
+function normDate(s: string): string {
+  return /T/.test(s) ? s : `${s}T00:00:00.000Z`;
 }
 
 function defaultPeriod(): { from: string; to: string } {
@@ -32,8 +42,8 @@ export async function GET(req: NextRequest) {
     config.assertFleet();
     const sp = req.nextUrl.searchParams;
     const def = defaultPeriod();
-    const from = sp.get("from") ?? def.from;
-    const to = sp.get("to") ?? def.to;
+    const from = normDate(sp.get("from") ?? def.from);
+    const to = normDate(sp.get("to") ?? def.to);
     const report = await buildTestReport(from, to);
     return NextResponse.json({ ok: true, report });
   } catch (e) {
