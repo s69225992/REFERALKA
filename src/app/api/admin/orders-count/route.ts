@@ -53,11 +53,19 @@ function authed(req: NextRequest): boolean {
 }
 
 // --- Даты: та же логика, что в test-report (голая дата -> начало/конец дня, непустой интервал) ---
+// Смещение таймзоны парка от UTC в минутах (Москва = +180, без летнего времени).
+// Голую дату YYYY-MM-DD трактуем как сутки в этой зоне — как отчёты Yandex Fleet,
+// иначе границы берутся по UTC и цифры расходятся со сводным отчётом парка.
+const PARK_TZ_OFFSET_MIN = Number(process.env.PARK_TZ_OFFSET_MIN ?? 180);
+function dayBoundary(s: string, endOfDay: boolean): string {
+  const utc = `${s}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`;
+  return new Date(new Date(utc).getTime() - PARK_TZ_OFFSET_MIN * 60000).toISOString();
+}
 function normFrom(s: string): string {
-  return /T/.test(s) ? s : `${s}T00:00:00.000Z`;
+  return /T/.test(s) ? s : dayBoundary(s, false);
 }
 function normTo(s: string): string {
-  return /T/.test(s) ? s : `${s}T23:59:59.999Z`;
+  return /T/.test(s) ? s : dayBoundary(s, true);
 }
 function ensureInterval(from: string, to: string): { from: string; to: string } {
   let f = new Date(from).getTime();
