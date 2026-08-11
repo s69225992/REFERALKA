@@ -142,6 +142,48 @@ export class FleetClient {
     return count;
   }
 
+  // Заказы за период с группировкой по водителю. Один проход по orders/list.
+  // Возвращает { total, byDriver: {driverId: count}, sampleKeys }.
+  // sampleKeys — ключи первого заказа, для диагностики имён полей (id водителя).
+  async ordersByDriver(
+    from: string,
+    to: string,
+    limit = 500,
+  ): Promise<{ total: number; byDriver: Record<string, number>; sampleKeys: string[] }> {
+    let total = 0;
+    const byDriver: Record<string, number> = {};
+    let sampleKeys: string[] = [];
+    let cursor: string | undefined;
+    for (let guard = 0; guard < 1000; guard++) {
+      const body: Json = {
+        query: { park: { id: this.parkId, order: { booked_at: { from, to } } } },
+        limit,
+      };
+      if (cursor) body.cursor = cursor;
+      const data = await this.postWithRetry("/v1/parks/orders/list", body);
+      const batch = (data.orders as Json[]) ?? [];
+      if (sampleKeys.length === 0 && batch[0]) sampleKeys = Object.keys(batch[0] as Json);
+      for (const raw of batch) {
+        total++;
+        const o = raw as Json;
+        const dp = o.driver_profile as Json | undefined;
+        const perf = o.performer as Json | undefined;
+        const perfDp = perf?.driver_profile as Json | undefined;
+        const did =
+          (o.driver_profile_id as string) ||
+          (dp?.id as string) ||
+          (perf?.driver_profile_id as string) ||
+          (perfDp?.id as string) ||
+          "";
+        if (did) byDriver[did] = (byDriver[did] ?? 0) + 1;
+      }
+      cursor = data.cursor as string | undefined;
+      if (!cursor || batch.length === 0) break;
+      await new Promise((r) => setTimeout(r, 250)); // пауза между страницами против 429
+    }
+    return { total, byDriver, sampleKeys };
+  }
+
   // Создать транзакцию на балансе водителя (ВЫПЛАТА). idempotencyKey -> X-Idempotency-Token.
   async createTransaction(args: {
     driverId: string;
