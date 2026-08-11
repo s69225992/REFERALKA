@@ -149,6 +149,7 @@ const refEarn = r => { const t=tById(r.tariff); return Math.round(turnoverOf(r.c
 let periodFactor = 1, periodLabel = "Эта неделя";
 let LIVE = false;                     // режим живых данных
 let ordersCount = null;               // кол-во заказов за период (подгружается отдельно; null = загрузка)
+let ordersByDriver = null;            // {driverId: кол-во заказов} за период (null = загрузка)
 const S = n => n*periodFactor;        // масштаб по периоду (только в демо-режиме)
 
 function weekAgoRange(days){
@@ -198,10 +199,10 @@ async function loadLive(from,to,label){
     const earners = (rep.rows||[]).filter(x=>x.parkCommission>0);  // водители с активностью за период
     activeDrivers = earners.length;
     parkCommissionWeek = rep.totals.parkCommission;
-    topDrivers = earners.slice(0,10).map(x=>[x.name, x.parkCommission]);
+    topDrivers = earners.slice(0,10).map(x=>[x.name, x.parkCommission, x.driverId]);
     referrals = [];                 // живых привязок рефереров пока нет
     LIVE = true; periodFactor = 1;
-    ordersCount = null;               // сброс на «загрузка», подтянем отдельным запросом
+    ordersCount = null; ordersByDriver = null;   // сброс на «загрузка», подтянем отдельным запросом
     setBadge('live');
     render();
     loadOrders(from,to);              // независимо: не блокирует и не ломает дашборд
@@ -220,7 +221,8 @@ async function loadOrders(from,to){
     const j = await r.json().catch(()=>({}));
     if(my!==_ordersReq) return;       // пришёл ответ на старый период — игнор
     ordersCount = (j && j.ok && typeof j.orders==='number') ? j.orders : '—';
-  }catch(e){ if(my===_ordersReq) ordersCount = '—'; }
+    ordersByDriver = (j && j.ok && j.byDriver && typeof j.byDriver==='object') ? j.byDriver : {};
+  }catch(e){ if(my===_ordersReq){ ordersCount = '—'; ordersByDriver = {}; } }
   if(my===_ordersReq && LIVE) render();
 }
 
@@ -356,9 +358,9 @@ const PAGES = {
   },
   drivers:()=>periodBar()+`
     <div class="muted" style="margin-bottom:12px">Синхронизируются из Fleet API. У каждого — свой реф-код; можно вручную указать реферера.</div>
-    <table><thead><tr><th class="num">#</th><th>Водитель</th><th>Код</th><th>Реферер</th><th>Тариф</th><th class="num">Комиссия парка</th></tr></thead><tbody>
-    ${topDrivers.map(([n,v],i)=>{const r=referrals.find(x=>x.referred.includes(n.split(' ')[1]||'—'));return `<tr><td class="num muted">${i+1}</td><td>${n}</td><td><span class="code">${'ABCQ'[i%4]}${700+i}</span></td><td class="muted">${r?r.referrer:'—'}</td><td>${r?`<span class="trf">${tById(r.tariff).name}</span>`:'<span class="muted">—</span>'}</td><td class="num">${fmt(S(v))} ₽</td></tr>`}).join('')}
-    </tbody><tfoot><tr><td colspan="5" class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">Итого по всем водителям (${activeDrivers})</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${fmt(S(parkCommissionWeek))} ₽</td></tr></tfoot></table>
+    <table><thead><tr><th class="num">#</th><th>Водитель</th><th>Код</th><th>Реферер</th><th>Тариф</th><th class="num">Заказов</th><th class="num">Комиссия парка</th></tr></thead><tbody>
+    ${topDrivers.map(([n,v,did],i)=>{const r=referrals.find(x=>x.referred.includes(n.split(' ')[1]||'—'));const oc = ordersByDriver===null ? '…' : (ordersByDriver[did]!=null ? ordersByDriver[did].toLocaleString('ru-RU') : 0);return `<tr><td class="num muted">${i+1}</td><td>${n}</td><td><span class="code">${'ABCQ'[i%4]}${700+i}</span></td><td class="muted">${r?r.referrer:'—'}</td><td>${r?`<span class="trf">${tById(r.tariff).name}</span>`:'<span class="muted">—</span>'}</td><td class="num">${oc}</td><td class="num">${fmt(S(v))} ₽</td></tr>`}).join('')}
+    </tbody><tfoot><tr><td colspan="5" class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">Итого по всем водителям (${activeDrivers})</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${ordersCount===null ? '…' : (typeof ordersCount==='number' ? ordersCount.toLocaleString('ru-RU') : ordersCount)}</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${fmt(S(parkCommissionWeek))} ₽</td></tr></tfoot></table>
     <div class="muted" style="margin-top:10px;font-size:12px">Показаны 10 из 200. В бою — поиск, фильтры, страницы.</div>`,
   referrals:()=>periodBar()+`
     <div class="muted" style="margin-bottom:12px">Связи «кто кого привёл» и тариф, на который привели. Реферер получает свой % с оборота приведённого.</div>
