@@ -120,10 +120,10 @@ const TARIFFS = [
 ];
 const tById = id => TARIFFS.find(t=>t.id===id);
 
-// ===== Данные из теста API (комиссия парка = partner_ride_fee, 3%) =====
-const activeDrivers = 200;
-const parkCommissionWeek = 43544.55;      // текущая комиссия парка за неделю
-const topDrivers = [
+// ===== Данные (демо — как первичный фолбэк; заменяются живыми из API) =====
+let activeDrivers = 200;
+let parkCommissionWeek = 43544.55;      // текущая комиссия парка за неделю
+let topDrivers = [
   ["Щербаченко Максим",5236.00],["Лебедев Эльдар",4791.75],["Гохман Игорь",4595.88],
   ["Павлинов Виталий",4502.08],["Орловский Николай",4249.55],["Абдулов Олимджон",3831.43],
   ["Маркосян Николай",3663.50],["Корнеев Данил",2748.52],["Овсепян Карен",2574.63],["Мударов Анзор",2173.15]
@@ -131,8 +131,8 @@ const topDrivers = [
 // оборот = комиссия / 3% (базовая ставка парка)
 const turnoverOf = comm => comm/0.03;
 
-// Рефералы: у каждого свой тариф (на какой привели)
-const referrals = [
+// Рефералы: у каждого свой тариф (на какой привели). В живом режиме — пусто, пока рефереры не привязаны.
+let referrals = [
   {referrer:"Карен Овсепян", referred:"Данил Корнеев",   comm:2748.52, tariff:'t31',  status:"active"},
   {referrer:"Карен Овсепян", referred:"Анзор Мударов",    comm:2173.15, tariff:'t415', status:"active"},
   {referrer:"Карен Овсепян", referred:"Олимджон Абдулов", comm:3831.43, tariff:'t52',  status:"active"},
@@ -146,16 +146,92 @@ const fmt = n => (n).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFrac
 const refEarn = r => { const t=tById(r.tariff); return Math.round(turnoverOf(r.comm)*t.ref/100*100)/100; };
 
 // ===== Период =====
-let periodFactor = 1, periodLabel = "Эта неделя (04.08 – 11.08)";
-function setPeriod(f,label){ periodFactor=f; periodLabel=label; render(); }
+let periodFactor = 1, periodLabel = "Эта неделя";
+let LIVE = false;                     // режим живых данных
+const S = n => n*periodFactor;        // масштаб по периоду (только в демо-режиме)
+
+function weekAgoRange(days){
+  const to = new Date(); to.setUTCHours(0,0,0,0);
+  const from = new Date(to); from.setUTCDate(from.getUTCDate()-days);
+  return [from.toISOString(), to.toISOString()];
+}
+function setPeriod(f,label){
+  periodLabel=label;
+  if(LIVE){ const [a,b]=weekAgoRange(Math.round(f*7)); periodFactor=1; loadLive(a,b,label); }
+  else { periodFactor=f; render(); }
+}
 function applyCustom(){
   const a=document.getElementById('cFrom').value, b=document.getElementById('cTo').value;
   if(!a||!b){return;}
   const days=Math.max(1,(new Date(b)-new Date(a))/86400000);
-  periodFactor=days/7; periodLabel=`${a.split('-').reverse().join('.')} – ${b.split('-').reverse().join('.')} (${Math.round(days)} дн.)`;
-  render();
+  const label=`${a.split('-').reverse().join('.')} – ${b.split('-').reverse().join('.')} (${Math.round(days)} дн.)`;
+  periodLabel=label;
+  if(LIVE){ periodFactor=1; loadLive(a+'T00:00:00.000Z', b+'T00:00:00.000Z', label); }
+  else { periodFactor=days/7; render(); }
 }
-const S = n => n*periodFactor; // масштаб по периоду
+
+// ===== Живые данные из Fleet (через /api/admin/test-report, read-only токен) =====
+async function loadLive(from,to,label){
+  const token = sessionStorage.getItem('ref_token');
+  if(!token){ showLogin(); return; }
+  if(label) periodLabel=label;
+  setBadge('loading');
+  try{
+    const r = await fetch(`/api/admin/test-report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      { headers: { Authorization: 'Bearer '+token } });
+    if(r.status===401){ sessionStorage.removeItem('ref_token'); showLogin('Неверный код доступа'); return; }
+    const j = await r.json();
+    if(!j.ok){ setBadge('error', j.error||'ошибка'); return; }
+    const rep = j.report;
+    activeDrivers = rep.activeDrivers;
+    parkCommissionWeek = rep.totals.parkCommission;
+    topDrivers = rep.rows.filter(x=>x.parkCommission>0).slice(0,10).map(x=>[x.name, x.parkCommission]);
+    referrals = [];                 // живых привязок рефереров пока нет
+    LIVE = true; periodFactor = 1;
+    setBadge('live');
+    render();
+  }catch(e){ setBadge('error', String(e)); }
+}
+
+// ===== Бейдж статуса =====
+function setBadge(state,msg){
+  let b=document.getElementById('liveBadge');
+  if(!b){ b=document.createElement('div'); b.id='liveBadge';
+    b.style.cssText='position:fixed;right:16px;bottom:16px;z-index:50;font:600 12px/1.2 system-ui;padding:8px 12px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.12);cursor:pointer';
+    b.onclick=showLogin; document.body.appendChild(b);
+  }
+  const map={ live:['🟢 Живые данные Fleet','#0b8a4b','#e6f6ec'],
+              loading:['⏳ Загрузка…','#8a6d0b','#fbf3d6'],
+              demo:['🟡 Демо · показать живые','#8a6d0b','#fbf3d6'],
+              error:['🔴 Ошибка · нажмите','#a11','#fdeaea'] };
+  const [t,c,bg]=map[state]||map.demo;
+  b.textContent = msg && state==='error' ? '🔴 '+String(msg).slice(0,60) : t;
+  b.style.color=c; b.style.background=bg;
+}
+
+// ===== Токен-гейт (код доступа менеджера = CABINET_TOKEN) =====
+function showLogin(msg){
+  if(document.getElementById('loginOv')) { if(msg) document.getElementById('loginErr').textContent=msg; return; }
+  const ov=document.createElement('div'); ov.id='loginOv';
+  ov.style.cssText='position:fixed;inset:0;z-index:100;background:rgba(15,23,42,.45);display:grid;place-items:center';
+  ov.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px 24px 20px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.25);font:14px/1.5 system-ui">
+    <div style="font:700 17px/1.3 system-ui;margin-bottom:4px">Кабинет менеджера</div>
+    <div style="color:#64748b;margin-bottom:14px">Введите код доступа, чтобы показать реальные данные парка.</div>
+    <input id="loginTok" type="password" placeholder="Код доступа" autocomplete="off"
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:14px">
+    <div id="loginErr" style="color:#dc2626;font-size:12px;min-height:16px;margin:6px 2px"></div>
+    <button id="loginGo" style="width:100%;padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:600 14px system-ui;cursor:pointer">Показать живые данные</button>
+    <div style="text-align:center;margin-top:10px"><a id="loginLater" href="#" style="color:#64748b;font-size:12px;text-decoration:none">Позже — оставить демо</a></div>
+  </div>`;
+  document.body.appendChild(ov);
+  if(msg) document.getElementById('loginErr').textContent=msg;
+  const submit=()=>{ const v=document.getElementById('loginTok').value.trim(); if(!v) return;
+    sessionStorage.setItem('ref_token',v); ov.remove(); const [a,b]=weekAgoRange(7); loadLive(a,b,'Эта неделя'); };
+  document.getElementById('loginGo').onclick=submit;
+  document.getElementById('loginTok').addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+  document.getElementById('loginTok').focus();
+  document.getElementById('loginLater').onclick=(e)=>{ e.preventDefault(); ov.remove(); setBadge('demo'); };
+}
 function periodBar(active){
   const presets=[[1,'Неделя'],[2,'2 недели'],[4.345,'Месяц'],[13,'Квартал']];
   return `<div class="period">
@@ -361,7 +437,13 @@ function ofertaDoc(forReferrer){
   </div>`;
 }
 
-render();
+// ===== Инициализация =====
+(function init(){
+  render();                                   // сразу показываем контент (демо)
+  const token = sessionStorage.getItem('ref_token');
+  if(token){ const [a,b]=weekAgoRange(7); loadLive(a,b,'Эта неделя'); }
+  else { setBadge('demo'); showLogin(); }
+})();
 </script>
 </body>
 </html>
