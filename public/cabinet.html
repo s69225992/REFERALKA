@@ -194,9 +194,10 @@ async function loadLive(from,to,label){
     const j = await r.json();
     if(!j.ok){ setBadge('error', j.error||'ошибка'); return; }
     const rep = j.report;
-    activeDrivers = rep.activeDrivers;
+    const earners = (rep.rows||[]).filter(x=>x.parkCommission>0);  // водители с активностью за период
+    activeDrivers = earners.length;
     parkCommissionWeek = rep.totals.parkCommission;
-    topDrivers = rep.rows.filter(x=>x.parkCommission>0).slice(0,10).map(x=>[x.name, x.parkCommission]);
+    topDrivers = earners.slice(0,10).map(x=>[x.name, x.parkCommission]);
     referrals = [];                 // живых привязок рефереров пока нет
     LIVE = true; periodFactor = 1;
     setBadge('live');
@@ -312,7 +313,7 @@ const PAGES = {
     const pend = S(referrals.filter(r=>r.status==='active').reduce((s,r)=>s+refEarn(r),0))*0.4;
     return periodBar() + `
     <div class="grid">
-      <div class="card"><div class="lbl">Активных водителей</div><div class="val">${activeDrivers}</div><div class="sub">по данным Fleet API</div></div>
+      <div class="card"><div class="lbl">Активных водителей</div><div class="val">${activeDrivers}</div><div class="sub">с комиссией за период</div></div>
       <div class="card"><div class="lbl">Комиссия парка</div><div class="val">${fmt(S(parkCommissionWeek))} ₽</div><div class="sub">за выбранный период</div></div>
       <div class="card"><div class="lbl">Активных рефералов</div><div class="val">${referrals.filter(r=>r.status==='active').length}</div><div class="sub">пар «привёл → работает»</div></div>
       <div class="card"><div class="lbl">К выплате агентам</div><div class="val" style="color:var(--amber)">${fmt(pend)} ₽</div><div class="sub">агентское вознаграждение</div></div>
