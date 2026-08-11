@@ -43,6 +43,22 @@ export class FleetClient {
     return (await res.json()) as Json;
   }
 
+  // POST с повторами на 429 (Limit exceeded) — у orders/list жёсткий лимит частоты.
+  private async postWithRetry(path: string, body: Json, tries = 6, baseDelayMs = 600): Promise<Json> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.post(path, body);
+      } catch (e) {
+        const msg = String(e);
+        if (msg.includes("-> 429") && attempt < tries - 1) {
+          await new Promise((r) => setTimeout(r, baseDelayMs * (attempt + 1))); // 0.6s, 1.2s, 1.8s...
+          continue;
+        }
+        throw e;
+      }
+    }
+  }
+
   private async get(path: string, params: Record<string, string>): Promise<Json> {
     const qs = new URLSearchParams(params).toString();
     const res = await fetch(`${this.baseUrl}${path}?${qs}`, { headers: this.headers() });
@@ -116,11 +132,12 @@ export class FleetClient {
         limit,
       };
       if (cursor) body.cursor = cursor;
-      const data = await this.post("/v1/parks/orders/list", body);
+      const data = await this.postWithRetry("/v1/parks/orders/list", body);
       const batch = (data.orders as Json[]) ?? [];
       count += batch.length;
       cursor = data.cursor as string | undefined;
       if (!cursor || batch.length === 0) break;
+      await new Promise((r) => setTimeout(r, 250)); // пауза между страницами против 429
     }
     return count;
   }
