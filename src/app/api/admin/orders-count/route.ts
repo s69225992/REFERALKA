@@ -84,8 +84,8 @@ export async function GET(req: NextRequest) {
       normFrom(sp.get("from") ?? def.from),
       normTo(sp.get("to") ?? def.to),
     );
-    const orders = await new FleetClient().countOrders(from, to);
-    return NextResponse.json({ ok: true, orders, from, to });
+    const { total, byDriver, statusCounts, sampleKeys } = await new FleetClient().ordersByDriver(from, to);
+    return NextResponse.json({ ok: true, orders: total, byDriver, statusCounts, sampleKeys, from, to });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
   }
