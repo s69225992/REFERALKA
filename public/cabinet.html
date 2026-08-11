@@ -148,6 +148,7 @@ const refEarn = r => { const t=tById(r.tariff); return Math.round(turnoverOf(r.c
 // ===== Период =====
 let periodFactor = 1, periodLabel = "Эта неделя";
 let LIVE = false;                     // режим живых данных
+let ordersCount = null;               // кол-во заказов за период (подгружается отдельно; null = загрузка)
 const S = n => n*periodFactor;        // масштаб по периоду (только в демо-режиме)
 
 function weekAgoRange(days){
@@ -200,9 +201,27 @@ async function loadLive(from,to,label){
     topDrivers = earners.slice(0,10).map(x=>[x.name, x.parkCommission]);
     referrals = [];                 // живых привязок рефереров пока нет
     LIVE = true; periodFactor = 1;
+    ordersCount = null;               // сброс на «загрузка», подтянем отдельным запросом
     setBadge('live');
     render();
+    loadOrders(from,to);              // независимо: не блокирует и не ломает дашборд
   }catch(e){ setBadge('error', String(e)); }
+}
+
+// ===== Кол-во заказов за период (отдельный лёгкий эндпоинт) =====
+let _ordersReq = 0;
+async function loadOrders(from,to){
+  const token = sessionStorage.getItem('ref_token');
+  if(!token){ return; }
+  const my = ++_ordersReq;            // отбрасываем устаревшие ответы при быстрой смене периода
+  try{
+    const r = await fetch(`/api/admin/orders-count?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      { headers: { Authorization: 'Bearer '+token } });
+    const j = await r.json().catch(()=>({}));
+    if(my!==_ordersReq) return;       // пришёл ответ на старый период — игнор
+    ordersCount = (j && j.ok && typeof j.orders==='number') ? j.orders : '—';
+  }catch(e){ if(my===_ordersReq) ordersCount = '—'; }
+  if(my===_ordersReq && LIVE) render();
 }
 
 // ===== Бейдж статуса =====
@@ -314,6 +333,7 @@ const PAGES = {
     return periodBar() + `
     <div class="grid">
       <div class="card"><div class="lbl">Активных водителей</div><div class="val">${activeDrivers}</div><div class="sub">с комиссией за период</div></div>
+      <div class="card"><div class="lbl">Заказов</div><div class="val">${LIVE ? (ordersCount===null ? '…' : (typeof ordersCount==='number' ? ordersCount.toLocaleString('ru-RU') : ordersCount)) : '—'}</div><div class="sub">за выбранный период</div></div>
       <div class="card"><div class="lbl">Комиссия парка</div><div class="val">${fmt(S(parkCommissionWeek))} ₽</div><div class="sub">за выбранный период</div></div>
       <div class="card"><div class="lbl">Активных рефералов</div><div class="val">${referrals.filter(r=>r.status==='active').length}</div><div class="sub">пар «привёл → работает»</div></div>
       <div class="card"><div class="lbl">К выплате агентам</div><div class="val" style="color:var(--amber)">${fmt(pend)} ₽</div><div class="sub">агентское вознаграждение</div></div>
