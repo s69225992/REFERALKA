@@ -4,16 +4,11 @@
 // Без дат — вчерашние московские сутки.
 import { NextRequest, NextResponse } from "next/server";
 import { config } from "@/lib/config";
+import { authed } from "@/lib/auth";
 import { syncDay, syncRange, mskDateStr } from "@/lib/services/dailyStats";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
-
-function authed(req: NextRequest): boolean {
-  if (!config.adminToken) return false;
-  if (req.headers.get("authorization") === `Bearer ${config.adminToken}`) return true;
-  return req.nextUrl.searchParams.get("token") === config.adminToken;
-}
 
 async function run(req: NextRequest) {
   if (!authed(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
