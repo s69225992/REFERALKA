@@ -17,6 +17,7 @@ model Driver {
   referralCode   String    @unique @map("referral_code")
   referredBy     Int?      @map("referred_by")
   status         String    @default("active")
+  photoUrl       String?   @map("photo_url")
   joinedAt       DateTime? @map("joined_at")
   ofertaAcceptedAt DateTime? @map("oferta_accepted_at")
   createdAt      DateTime  @default(now()) @map("created_at")
@@ -29,8 +30,81 @@ model Driver {
   snapshots         CommissionSnapshot[]
   accrualsAsReferrer ReferralAccrual[]  @relation("AccrualReferrer")
   accrualsAsReferred ReferralAccrual[]  @relation("AccrualReferred")
+  account           Account?
+  dailyStats        DriverDailyStat[]
 
   @@map("drivers")
+}
+
+// Внешний реферер (агент), не Fleet-водитель. Хранится у нас.
+model Agent {
+  id           Int      @id @default(autoincrement())
+  fullName     String?  @map("full_name")
+  phone        String?  @unique
+  email        String?  @unique
+  referralCode String   @unique @map("referral_code")
+  photoUrl     String?  @map("photo_url")
+  status       String   @default("active") // active | blocked
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  account Account?
+  @@map("agents")
+}
+
+// Учётка для входа (Telegram / телефон / email). Одна на человека, роль сверху.
+model Account {
+  id           Int      @id @default(autoincrement())
+  telegramId   String?  @unique @map("telegram_id")
+  phone        String?  @unique
+  email        String?  @unique
+  passwordHash String?  @map("password_hash")
+  role         String   @default("agent") // admin | manager | agent | driver
+  agentId      Int?     @unique @map("agent_id")
+  driverId     Int?     @unique @map("driver_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  agent  Agent?  @relation(fields: [agentId], references: [id])
+  driver Driver? @relation(fields: [driverId], references: [id])
+  @@map("accounts")
+}
+
+// Заявка на привязку «водитель-агент» к своему Fleet-профилю (подтверждает менеджер).
+model DriverLinkRequest {
+  id              Int       @id @default(autoincrement())
+  accountId       Int       @map("account_id")
+  claimedDriverId Int       @map("claimed_driver_id")
+  parkPhone       String    @map("park_phone")
+  telegramPhone   String?   @map("telegram_phone")
+  status          String    @default("pending") // pending | approved | rejected
+  decidedBy       Int?      @map("decided_by")
+  decidedAt       DateTime? @map("decided_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([status])
+  @@map("driver_link_requests")
+}
+
+// Склад посуточной статистики водителя (кэш данных Fleet у нас).
+model DriverDailyStat {
+  id             Int      @id @default(autoincrement())
+  driverId       Int      @map("driver_id")
+  date           DateTime @db.Date
+  orders         Int      @default(0)
+  parkCommission Decimal  @default(0) @map("park_commission") @db.Decimal(12, 2)
+  final          Boolean  @default(false)
+  pulledAt       DateTime @default(now()) @map("pulled_at")
+
+  driver Driver @relation(fields: [driverId], references: [id])
+  @@unique([driverId, date])
+  @@index([date])
+  @@map("driver_daily_stats")
+}
+
+// Настройки программы (правит admin): activation_threshold, accrual_months, min_payout, today_mode ...
+model ProgramSetting {
+  key   String @id
+  value String
+  @@map("program_settings")
 }
 
 model Referral {
