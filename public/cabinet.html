@@ -434,8 +434,8 @@ const MENUS = {
   ]
 };
 let role="manager", page="overview";
-function setRole(r){ role=r; page=MENUS[r][0][0]; render(); }
-function go(p){ page=p; render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); } }
+function setRole(r){ role=r; page=MENUS[r][0][0]; try{sessionStorage.setItem('ref_role',r);sessionStorage.setItem('ref_page',page);}catch(e){} render(); }
+function go(p){ page=p; try{sessionStorage.setItem('ref_page',p);}catch(e){} render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); } }
 function setInviteTariff(id){ me.inviteTariff=id; render(); }
 
 function render(){
@@ -686,6 +686,12 @@ function ofertaDoc(forReferrer){
 (function init(){
   const token = sessionStorage.getItem('ref_token');
   if(token){ referrals=[]; }                  // залогинен — не показываем демо-данные, ждём живые из Fleet
+  // восстановить активную вкладку после перезагрузки (а не всегда «Обзор»)
+  try{
+    const sr = sessionStorage.getItem('ref_role'); if(sr && MENUS[sr]) role = sr;
+    const sp = sessionStorage.getItem('ref_page');
+    page = (sp && MENUS[role].some(m=>m[0]===sp)) ? sp : MENUS[role][0][0];
+  }catch(e){}
   render();
   if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); }
   else { setBadge('demo'); showLogin(); }
