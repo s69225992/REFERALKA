@@ -3,7 +3,7 @@
 // POST — создать агента (fullName / phone / email), генерит уникальный реф-код.
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { config } from "@/lib/config";
+import { authed } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -24,12 +24,6 @@ async function uniqueCode(): Promise<string> {
     if (!d && !a) return code;
   }
 }
-function authed(req: NextRequest): boolean {
-  if (!config.adminToken) return false;
-  if (req.headers.get("authorization") === `Bearer ${config.adminToken}`) return true;
-  return req.nextUrl.searchParams.get("token") === config.adminToken;
-}
-
 export async function GET(req: NextRequest) {
   if (!authed(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const agents = await prisma.agent.findMany({ orderBy: { createdAt: "desc" } });
