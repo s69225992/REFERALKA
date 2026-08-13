@@ -2,8 +2,10 @@
 // Реферер может быть водителем (Driver) или агентом (Agent) — ищем код в обоих.
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { authed } from "@/lib/auth";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  if (!authed(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { referralCode, tariffCode } = (await req.json().catch(() => ({}))) as {
     referralCode?: string;
     tariffCode?: string;
