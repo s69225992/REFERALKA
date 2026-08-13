@@ -153,6 +153,7 @@ let ordersCount = null;               // кол-во заказов за пер�
 let ordersByDriver = null;            // {driverId: кол-во заказов} за период (null = загрузка)
 let dbDriversByYid = null;            // yandexId -> запись водителя из нашей БД (реферер и т.п.); null = не загружено
 let agentsList = null;                // список агентов из БД
+let impData = null;                   // данные кабинета реферера в режиме «просмотра как»
 const DB_TARIFFS = [['3_1','3 / 1'],['4_1.5','4 / 1,5'],['5_2','5 / 2']]; // коды тарифов как в БД
 const S = n => n*periodFactor;        // масштаб по периоду (только в демо-режиме)
 
@@ -289,6 +290,33 @@ async function createAgent(){
   }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Создать агента'; } }
 }
 
+// ===== «Просмотр как» реферер (impersonation для менеджера) =====
+async function openReferrer(type,id){
+  const token=sessionStorage.getItem('ref_token'); if(!token) return;
+  impData=null; page='refcab'; render();
+  try{
+    const j=await fetch(`/api/admin/referrer?type=${type}&id=${id}`,{headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    impData = j && j.ok ? j : {referrer:null};
+  }catch(e){ impData={referrer:null}; }
+  render();
+}
+function exitImp(){ impData=null; page='agents'; render(); }
+async function saveReferrer(){
+  if(!impData||!impData.referrer) return;
+  const p=impData.referrer, token=sessionStorage.getItem('ref_token');
+  const btn=document.getElementById('rcSave'), msg=document.getElementById('rcMsg');
+  const fullName=(document.getElementById('rcName')||{}).value?.trim();
+  const phone=(document.getElementById('rcPhone')||{}).value?.trim();
+  const email=(document.getElementById('rcEmail')||{}).value?.trim();
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  try{
+    const j=await fetch('/api/admin/referrer',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({type:'agent',id:p.id,fullName,phone,email})}).then(r=>r.json());
+    if(j.ok){ impData.referrer.name=fullName; impData.referrer.phone=phone; impData.referrer.email=email; if(msg)msg.textContent='Сохранено'; loadAgents(); }
+    else { if(msg)msg.textContent=j.error||'Ошибка'; }
+  }catch(e){ if(msg)msg.textContent='Ошибка сети'; }
+  if(btn){btn.disabled=false;btn.textContent='Сохранить';}
+}
+
 // Ячейки «Реферер» + «Тариф» для строки водителя (по yandexId).
 function refCells(did){
   if(dbDriversByYid===null) return '<td class="muted">…</td><td class="muted">…</td>';
@@ -418,7 +446,8 @@ function render(){
   else{document.getElementById('avatar').textContent='К';document.getElementById('avatar').style.background='#1a9e57';document.getElementById('whoName').textContent=me.name;document.getElementById('whoRole').textContent='Реферер (агент)';}
   const nav=document.getElementById('nav');nav.innerHTML='';
   MENUS[role].forEach(([id,ic,label])=>{const a=document.createElement('a');a.className=(id===page?'active':'');a.onclick=()=>go(id);a.innerHTML=ic?`<span class="ic">${ic}</span> ${label}`:label;nav.appendChild(a);});
-  document.getElementById('pageTitle').textContent = MENUS[role].find(m=>m[0]===page)[2];
+  const _mi = MENUS[role].find(m=>m[0]===page);
+  document.getElementById('pageTitle').textContent = _mi ? _mi[2] : (page==='refcab' ? 'Кабинет реферера' : '');
   document.getElementById('content').innerHTML = PAGES[page]();
 }
 
@@ -470,9 +499,9 @@ const PAGES = {
   agents:()=>{
     const rows = agentsList||[];
     const list = agentsList===null
-      ? '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
-      : (rows.length ? rows.map((a,i)=>`<tr><td class="num muted">${i+1}</td><td>${a.fullName||'—'}</td><td><span class="code">${a.referralCode}</span></td><td class="muted">${a.phone||'—'}</td><td class="muted">${a.email||'—'}</td></tr>`).join('')
-        : '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center">Агентов пока нет</td></tr>');
+      ? '<tr><td colspan="6" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
+      : (rows.length ? rows.map((a,i)=>`<tr><td class="num muted">${i+1}</td><td>${a.fullName||'—'}</td><td><span class="code">${a.referralCode}</span></td><td class="num">${a.referredActive||0} / ${a.referredTotal||0}</td><td class="num">${fmt(a.accrued||0)} ₽</td><td class="num"><button class="btn sec" style="padding:5px 10px;font-size:12px" onclick="openReferrer('agent',${a.id})">Открыть кабинет</button></td></tr>`).join('')
+        : '<tr><td colspan="6" class="muted" style="padding:12px;text-align:center">Агентов пока нет</td></tr>');
     return `
     <div class="muted" style="margin-bottom:12px">Агенты — внешние рефереры (не водители парка). У каждого свой реф-код; его вводят в таблице «Водители», чтобы привязать водителя к агенту.</div>
     <div class="card" style="margin-bottom:18px">
@@ -485,8 +514,45 @@ const PAGES = {
         <span id="agMsg" class="muted" style="font-size:12px"></span>
       </div>
     </div>
-    <table><thead><tr><th class="num">#</th><th>ФИО</th><th>Реф-код</th><th>Телефон</th><th>Email</th></tr></thead>
+    <table><thead><tr><th class="num">#</th><th>ФИО</th><th>Реф-код</th><th class="num">Активных / всего</th><th class="num">Доход</th><th class="num"></th></tr></thead>
     <tbody>${list}</tbody></table>`;
+  },
+  refcab:()=>{
+    const d = impData;
+    if(!d) return '<div class="card empty">Загрузка…</div>';
+    const p = d.referrer||{};
+    const TH = 15; // порог активации (по умолчанию; позже — из настроек программы)
+    const refRows = (d.referred||[]).length
+      ? d.referred.map((r,i)=>{const q=r.qualifyingOrders||0; const active=!!r.activatedAt; const pct=Math.min(100,Math.round(q/TH*100));
+          return `<tr><td class="num muted">${i+1}</td><td>${r.name||r.code||'—'}</td><td><span class="trf">${r.tariffCode||''}</span></td><td>${active?'<span class="badge active">активен</span>':`<div class="track" style="width:120px;display:inline-block;vertical-align:middle"><div class="fill" style="width:${pct}%"></div></div> <span class="muted" style="font-size:12px">${q}/${TH}</span>`}</td></tr>`}).join('')
+      : '<tr><td colspan="4" class="muted" style="padding:12px;text-align:center">Пока нет приведённых</td></tr>';
+    const accRows = (d.accruals||[]).length
+      ? d.accruals.map(a=>`<tr><td>${(a.periodFrom||'').slice(0,10)} — ${(a.periodTo||'').slice(0,10)}</td><td class="num">${fmt(Number(a.amount))} ₽</td><td><span class="badge ${a.status==='paid'?'paid':'pending'}">${a.status}</span></td></tr>`).join('')
+      : '<tr><td colspan="3" class="muted" style="padding:12px;text-align:center">Начислений пока нет</td></tr>';
+    return `
+    <div class="card" style="background:#fff7e6;border-color:#f0d590;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div><b>Режим менеджера:</b> ${p.name||p.code||'реферер'} <span class="muted">(${p.type==='agent'?'агент':'водитель'}, код ${p.code||''})</span></div>
+      <button class="btn sec" onclick="exitImp()">Выйти</button>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="lbl">Приведённых</div><div class="val">${d.totals?d.totals.referredActive:0} / ${d.totals?d.totals.referredTotal:0}</div><div class="sub">активных / всего</div></div>
+      <div class="card"><div class="lbl">Начислено</div><div class="val">${fmt(d.totals?d.totals.accrued:0)} ₽</div><div class="sub">за всё время</div></div>
+    </div>
+    ${p.type==='agent' ? `
+    <div class="card" style="margin:16px 0">
+      <div class="sec" style="margin-top:0">Профиль агента</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+        <input id="rcName" placeholder="ФИО" value="${(p.name||'').replace(/"/g,'&quot;')}" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+        <input id="rcPhone" placeholder="Телефон" value="${(p.phone||'').replace(/"/g,'&quot;')}" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+        <input id="rcEmail" placeholder="Email" value="${(p.email||'').replace(/"/g,'&quot;')}" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+        <button id="rcSave" class="btn" onclick="saveReferrer()">Сохранить</button>
+        <span id="rcMsg" class="muted" style="font-size:12px"></span>
+      </div>
+    </div>` : ''}
+    <div class="sec">Приведённые водители</div>
+    <table><thead><tr><th class="num">#</th><th>Водитель</th><th>Тариф</th><th>Квалификация</th></tr></thead><tbody>${refRows}</tbody></table>
+    <div class="sec">Начисления</div>
+    <table><thead><tr><th>Период</th><th class="num">Сумма</th><th>Статус</th></tr></thead><tbody>${accRows}</tbody></table>`;
   },
   referrals:()=>periodBar()+`
     <div class="muted" style="margin-bottom:12px">Связи «кто кого привёл» и тариф, на который привели. Реферер получает свой % с оборота приведённого.</div>
