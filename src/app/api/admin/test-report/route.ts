@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { config } from "@/lib/config";
-import { buildTestReport } from "@/lib/services/report";
+import { hybridPeriod, mskDateFromAny, mskDateStr } from "@/lib/services/dailyStats";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -57,52 +57,39 @@ function authed(req: NextRequest): boolean {
   return false;
 }
 
-// Fleet требует дату-время и НЕПУСТОЙ интервал. Голую дату (YYYY-MM-DD) для
-// начала периода дополняем началом дня, для конца — концом дня. Иначе выбор
-// одного дня (from == to) даёт нулевой интервал и Fleet отвечает 400
-// ("must contain a non-empty time interval").
-// Смещение таймзоны парка от UTC в минутах (Москва = +180, без летнего времени).
-// Голую дату YYYY-MM-DD трактуем как сутки в этой зоне — как отчёты Yandex Fleet,
-// иначе границы берутся по UTC и цифры расходятся со сводным отчётом парка.
-const PARK_TZ_OFFSET_MIN = Number(process.env.PARK_TZ_OFFSET_MIN ?? 180);
-function dayBoundary(s: string, endOfDay: boolean): string {
-  const utc = `${s}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`;
-  return new Date(new Date(utc).getTime() - PARK_TZ_OFFSET_MIN * 60000).toISOString();
-}
-function normFrom(s: string): string {
-  return /T/.test(s) ? s : dayBoundary(s, false);
-}
-function normTo(s: string): string {
-  return /T/.test(s) ? s : dayBoundary(s, true);
-}
-// Гарантируем, что конец строго позже начала (защита от пустого интервала).
-function ensureInterval(from: string, to: string): { from: string; to: string } {
-  let f = new Date(from).getTime();
-  let t = new Date(to).getTime();
-  if (!Number.isFinite(f)) f = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  if (!Number.isFinite(t) || t <= f) t = f + 24 * 60 * 60 * 1000;
-  return { from: new Date(f).toISOString(), to: new Date(t).toISOString() };
-}
-
-function defaultPeriod(): { from: string; to: string } {
-  const to = new Date();
-  to.setUTCHours(0, 0, 0, 0);
-  const from = new Date(to);
-  from.setUTCDate(from.getUTCDate() - 7);
-  return { from: from.toISOString(), to: to.toISOString() };
-}
-
 export async function GET(req: NextRequest) {
   if (!authed(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
     config.assertFleet();
     const sp = req.nextUrl.searchParams;
-    const def = defaultPeriod();
-    const { from, to } = ensureInterval(
-      normFrom(sp.get("from") ?? def.from),
-      normTo(sp.get("to") ?? def.to),
-    );
-    const report = await buildTestReport(from, to);
+    const fromDate = sp.get("from") ? mskDateFromAny(sp.get("from") as string) : mskDateStr(7);
+    const toDate = sp.get("to") ? mskDateFromAny(sp.get("to") as string) : mskDateStr(0);
+
+    // Старые дни — из склада, последние — живьём (см. hybridPeriod).
+    const { acc, split } = await hybridPeriod(fromDate, toDate, { commission: true });
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const rows = [...acc.entries()]
+      .map(([yid, e]) => ({
+        driverId: yid,
+        name: e.name,
+        workStatus: "",
+        parkCommission: round2(e.parkCommission),
+        referralShare: 0,
+        byCategory: {} as Record<string, number>,
+      }))
+      .sort((a, b) => b.parkCommission - a.parkCommission);
+    const totalCommission = round2(rows.reduce((s, r) => s + r.parkCommission, 0));
+
+    const report = {
+      period: { from: fromDate, to: toDate },
+      rate: config.referral.rate,
+      commissionCategoryIds: config.referral.commissionCategoryIds,
+      categoriesLegend: {} as Record<string, string>,
+      activeDrivers: rows.filter((r) => r.parkCommission > 0).length,
+      totals: { parkCommission: totalCommission, referralShare: 0 },
+      rows,
+      source: split,
+    };
     return NextResponse.json({ ok: true, report });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
