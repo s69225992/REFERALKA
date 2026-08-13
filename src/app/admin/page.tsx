@@ -18,7 +18,7 @@ export default async function AdminPage() {
     prisma.referralAccrual.findMany({
       orderBy: { createdAt: "desc" },
       take: 20,
-      include: { referrer: true, referred: true },
+      include: { referrer: true, agent: true, referred: true },
     }),
   ]);
 
@@ -64,7 +64,7 @@ export default async function AdminPage() {
           <tbody>
             {accruals.map((a) => (
               <tr key={a.id}>
-                <td>{a.referrer.fullName ?? a.referrer.yandexDriverId}</td>
+                <td>{a.referrer ? (a.referrer.fullName ?? a.referrer.yandexDriverId) : (a.agent?.fullName ?? a.agent?.referralCode ?? "—")}</td>
                 <td>{a.referred.fullName ?? a.referred.yandexDriverId}</td>
                 <td>
                   {a.periodFrom.toISOString().slice(0, 10)} — {a.periodTo.toISOString().slice(0, 10)}
