@@ -146,7 +146,7 @@ const fmt = n => (n).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFrac
 const refEarn = r => { const t=tById(r.tariff); return Math.round(turnoverOf(r.comm)*t.ref/100*100)/100; };
 
 // ===== Период =====
-let periodFactor = 1, periodLabel = "Эта неделя";
+let periodFactor = 1, periodLabel = "Сегодня";
 let LIVE = false;                     // режим живых данных
 let ordersCount = null;               // кол-во заказов за период (подгружается отдельно; null = загрузка)
 let ordersByDriver = null;            // {driverId: кол-во заказов} за период (null = загрузка)
@@ -161,6 +161,11 @@ function mskMidnightUTC(daysAgo){
   d.setUTCHours(0,0,0,0);
   d.setUTCDate(d.getUTCDate() - daysAgo);
   return d.getTime() - PARK_TZ_OFFSET_MS;
+}
+// Сегодняшняя календарная дата парка (YYYY-MM-DD) — «свежее» значение по умолчанию
+// для полей-календарей; пересчитывается при каждом рендере, поэтому не «протухает».
+function mskTodayStr(){
+  return new Date(Date.now() + PARK_TZ_OFFSET_MS).toISOString().slice(0,10);
 }
 function weekAgoRange(days){
   const to = mskMidnightUTC(0);
@@ -282,7 +287,7 @@ function showLogin(msg){
       const j=await r.json().catch(()=>({}));
       if(!r.ok||!j.ok||!j.token){ errEl.textContent=j.error||'Неверный логин или пароль'; btn.disabled=false; btn.textContent=t0; return; }
       sessionStorage.setItem('ref_token',j.token); ov.remove();
-      const [a,b]=weekAgoRange(7); loadLive(a,b,'Эта неделя');
+      const [a,b]=dayRange(0); loadLive(a,b,'Сегодня');
     }catch(e){ errEl.textContent='Ошибка сети, попробуйте ещё раз'; btn.disabled=false; btn.textContent=t0; }
   };
   document.getElementById('loginGo').onclick=submit;
@@ -299,7 +304,7 @@ function periodBar(active){
     ${days.map(([o,l])=>`<button class="p ${on(l)}" onclick="setDay(${o},'${l}')">${l}</button>`).join('')}
     ${presets.map(([f,l])=>`<button class="p ${on(l)}" onclick="setPeriod(${f},'${l}')">${l}</button>`).join('')}
     <span class="muted" style="font-size:12px">или</span>
-    <input type="date" id="cFrom" value="2026-07-11"><span class="muted">–</span><input type="date" id="cTo" value="2026-08-11">
+    <input type="date" id="cFrom" value="${mskTodayStr()}"><span class="muted">–</span><input type="date" id="cTo" value="${mskTodayStr()}">
     <button class="p" onclick="applyCustom()">Применить</button>
     <span class="lab">Период: ${periodLabel}</span>
   </div>`;
@@ -504,7 +509,7 @@ function ofertaDoc(forReferrer){
 (function init(){
   render();                                   // сразу показываем контент (демо)
   const token = sessionStorage.getItem('ref_token');
-  if(token){ const [a,b]=weekAgoRange(7); loadLive(a,b,'Эта неделя'); }
+  if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); }
   else { setBadge('demo'); showLogin(); }
 })();
 </script>
