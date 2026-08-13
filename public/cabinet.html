@@ -151,6 +151,9 @@ let LIVE = false;                     // режим живых данных
 let liveLoaded = false;               // пришли ли уже живые данные (до этого залогиненному показываем «…», а не демо)
 let ordersCount = null;               // кол-во заказов за период (подгружается отдельно; null = загрузка)
 let ordersByDriver = null;            // {driverId: кол-во заказов} за период (null = загрузка)
+let dbDriversByYid = null;            // yandexId -> запись водителя из нашей БД (реферер и т.п.); null = не загружено
+let agentsList = null;                // список агентов из БД
+const DB_TARIFFS = [['3_1','3 / 1'],['4_1.5','4 / 1,5'],['5_2','5 / 2']]; // коды тарифов как в БД
 const S = n => n*periodFactor;        // масштаб по периоду (только в демо-режиме)
 
 // Границы суток берём по таймзоне парка (Москва, UTC+3, без перехода на летнее
@@ -222,7 +225,82 @@ async function loadLive(from,to,label){
     setBadge('live');
     render();
     loadOrders(from,to);              // независимо: не блокирует и не ломает дашборд
+    loadDbDrivers();                  // подтянуть водителей из нашей БД (реферер, реф-код)
+    loadAgents();                     // подтянуть агентов
   }catch(e){ setBadge('error', String(e)); }
+}
+
+// ===== Водители из нашей БД (реферер, реф-код) — для привязки в таблице =====
+async function loadDbDrivers(){
+  const token = sessionStorage.getItem('ref_token'); if(!token) return;
+  try{
+    const j = await fetch('/api/cabinet/drivers',{headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    const map = {};
+    (j.drivers||[]).forEach(d=>{ map[d.yandexDriverId]=d; });
+    dbDriversByYid = map;
+  }catch(e){ dbDriversByYid = {}; }
+  if(LIVE) render();
+}
+
+// ===== Агенты из БД =====
+async function loadAgents(){
+  const token = sessionStorage.getItem('ref_token'); if(!token) return;
+  try{
+    const j = await fetch('/api/admin/agents',{headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    agentsList = j.agents || [];
+  }catch(e){ agentsList = []; }
+  if(LIVE && page==='agents') render();
+}
+
+// Привязать реферера к водителю (кнопка в таблице). btn — сама кнопка, dbId — id водителя в нашей БД.
+async function bindRef(btn, dbId){
+  const tr = btn.closest('tr');
+  const code = (tr.querySelector('.bindcode')||{}).value?.trim();
+  const tariff = (tr.querySelector('.bindtariff')||{}).value || '3_1';
+  if(!code){ return; }
+  const token = sessionStorage.getItem('ref_token');
+  btn.disabled=true; const t0=btn.textContent; btn.textContent='…';
+  try{
+    const r = await fetch(`/api/drivers/${dbId}/bind-referrer`,{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({referralCode:code, tariffCode:tariff})});
+    const j = await r.json().catch(()=>({}));
+    if(j.ok){ await loadDbDrivers(); render(); }
+    else { btn.disabled=false; btn.textContent=t0; btn.title=j.error||'Ошибка'; tr.querySelector('.bindcode').style.borderColor='#dc2626'; }
+  }catch(e){ btn.disabled=false; btn.textContent=t0; }
+}
+
+// Создать агента (форма на вкладке «Агенты»).
+async function createAgent(){
+  const name=(document.getElementById('agName')||{}).value?.trim();
+  const phone=(document.getElementById('agPhone')||{}).value?.trim();
+  const email=(document.getElementById('agEmail')||{}).value?.trim();
+  const msg=document.getElementById('agMsg');
+  if(!name && !phone && !email){ if(msg) msg.textContent='Укажите хотя бы ФИО, телефон или email'; return; }
+  const token = sessionStorage.getItem('ref_token');
+  const btn=document.getElementById('agCreate'); if(btn){ btn.disabled=true; btn.textContent='…'; }
+  try{
+    const r=await fetch('/api/admin/agents',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({fullName:name,phone,email})});
+    const j=await r.json().catch(()=>({}));
+    if(j.ok){ await loadAgents(); render(); }
+    else { if(msg) msg.textContent=j.error||'Ошибка'; if(btn){ btn.disabled=false; btn.textContent='Создать агента'; } }
+  }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Создать агента'; } }
+}
+
+// Ячейки «Реферер» + «Тариф» для строки водителя (по yandexId).
+function refCells(did){
+  if(dbDriversByYid===null) return '<td class="muted">…</td><td class="muted">…</td>';
+  const d = dbDriversByYid[did];
+  if(!d) return '<td class="muted" style="font-size:12px">нет в базе</td><td class="muted">—</td>';
+  if(d.referrer){
+    const kind = d.referrer.type==='agent' ? 'агент' : 'водитель';
+    return `<td>${d.referrer.name} <span class="muted" style="font-size:11px">(${kind})</span></td><td><span class="trf">${d.tariffCode||''}</span></td>`;
+  }
+  // в базе, реферера нет — форма привязки
+  const opts = DB_TARIFFS.map(([c,n])=>`<option value="${c}">${n}</option>`).join('');
+  return `<td><span style="display:inline-flex;gap:4px;align-items:center"><input class="bindcode" placeholder="код" style="width:84px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-size:12px"><button class="btn" style="padding:4px 9px;font-size:12px" onclick="bindRef(this,${d.id})">Привязать</button></span></td><td><select class="bindtariff" style="padding:4px;border:1px solid var(--line);border-radius:6px;font-size:12px">${opts}</select></td>`;
 }
 
 // ===== Кол-во заказов за период (отдельный лёгкий эндпоинт) =====
@@ -318,7 +396,7 @@ const myRefs = ()=>referrals.filter(r=>r.referrer==="Карен Овсепян")
 // ===== Меню =====
 const MENUS = {
   manager:[
-    ["overview","📊","Обзор"],["drivers","🧑","Водители"],["referrals","🔗","Рефералы"],
+    ["overview","📊","Обзор"],["drivers","🧑","Водители"],["agents","🤝","Агенты"],["referrals","🔗","Рефералы"],
     ["accruals","💰","Начисления"],["payouts","🏦","Выплаты"],["tariffs","🏷️","Тарифы"],
     ["oferta","📄","Оферта"],["settings","⚙️","Настройки"]
   ],
@@ -329,7 +407,7 @@ const MENUS = {
 };
 let role="manager", page="overview";
 function setRole(r){ role=r; page=MENUS[r][0][0]; render(); }
-function go(p){ page=p; render(); }
+function go(p){ page=p; render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); } }
 function setInviteTariff(id){ me.inviteTariff=id; render(); }
 
 function render(){
@@ -380,7 +458,7 @@ const PAGES = {
     const body = waiting
       ? `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">Загрузка данных из Fleet…</td></tr>`
       : (topDrivers.length
-          ? topDrivers.map(([n,v,did],i)=>{const r=referrals.find(x=>x.referred.includes(n.split(' ')[1]||'—'));const oc = ordersByDriver===null ? '…' : (ordersByDriver[did]!=null ? ordersByDriver[did].toLocaleString('ru-RU') : 0);return `<tr><td class="num muted">${i+1}</td><td>${n}</td><td><span class="code">${'ABCQ'[i%4]}${700+i}</span></td><td class="muted">${r?r.referrer:'—'}</td><td>${r?`<span class="trf">${tById(r.tariff).name}</span>`:'<span class="muted">—</span>'}</td><td class="num">${oc}</td><td class="num">${fmt(S(v))} ₽</td></tr>`}).join('')
+          ? topDrivers.map(([n,v,did],i)=>{const d = dbDriversByYid ? dbDriversByYid[did] : undefined; const oc = ordersByDriver===null ? '…' : (ordersByDriver[did]!=null ? ordersByDriver[did].toLocaleString('ru-RU') : 0);return `<tr><td class="num muted">${i+1}</td><td>${n}</td><td><span class="code">${d?d.referralCode:('ABCQ'[i%4]+(700+i))}</span></td>${refCells(did)}<td class="num">${oc}</td><td class="num">${fmt(S(v))} ₽</td></tr>`}).join('')
           : `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">Нет данных за период</td></tr>`);
     return periodBar()+`
     <div class="muted" style="margin-bottom:12px">Синхронизируются из Fleet API. У каждого — свой реф-код; можно вручную указать реферера.</div>
@@ -388,6 +466,27 @@ const PAGES = {
     ${body}
     </tbody><tfoot><tr><td colspan="5" class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">Итого по всем водителям (${waiting?'…':activeDrivers})</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${waiting?'…':(ordersCount===null ? '…' : (typeof ordersCount==='number' ? ordersCount.toLocaleString('ru-RU') : ordersCount))}</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${waiting?'…':fmt(S(parkCommissionWeek))+' ₽'}</td></tr></tfoot></table>
     <div class="muted" style="margin-top:10px;font-size:12px">В бою — поиск, фильтры, страницы.</div>`;
+  },
+  agents:()=>{
+    const rows = agentsList||[];
+    const list = agentsList===null
+      ? '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
+      : (rows.length ? rows.map((a,i)=>`<tr><td class="num muted">${i+1}</td><td>${a.fullName||'—'}</td><td><span class="code">${a.referralCode}</span></td><td class="muted">${a.phone||'—'}</td><td class="muted">${a.email||'—'}</td></tr>`).join('')
+        : '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center">Агентов пока нет</td></tr>');
+    return `
+    <div class="muted" style="margin-bottom:12px">Агенты — внешние рефереры (не водители парка). У каждого свой реф-код; его вводят в таблице «Водители», чтобы привязать водителя к агенту.</div>
+    <div class="card" style="margin-bottom:18px">
+      <div class="sec" style="margin-top:0">Новый агент</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+        <input id="agName" placeholder="ФИО" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+        <input id="agPhone" placeholder="Телефон" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+        <input id="agEmail" placeholder="Email" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+        <button id="agCreate" class="btn" onclick="createAgent()">Создать агента</button>
+        <span id="agMsg" class="muted" style="font-size:12px"></span>
+      </div>
+    </div>
+    <table><thead><tr><th class="num">#</th><th>ФИО</th><th>Реф-код</th><th>Телефон</th><th>Email</th></tr></thead>
+    <tbody>${list}</tbody></table>`;
   },
   referrals:()=>periodBar()+`
     <div class="muted" style="margin-bottom:12px">Связи «кто кого привёл» и тариф, на который привели. Реферер получает свой % с оборота приведённого.</div>
