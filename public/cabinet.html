@@ -123,6 +123,7 @@ const tById = id => TARIFFS.find(t=>t.id===id);
 // ===== Данные (демо — как первичный фолбэк; заменяются живыми из API) =====
 let activeDrivers = 200;
 let parkCommissionWeek = 43544.55;      // текущая комиссия парка за неделю
+let allDrivers = [];                    // ВСЕ водители с комиссией за период (для вкладки «Водители»)
 let topDrivers = [
   ["Щербаченко Максим",5236.00],["Лебедев Эльдар",4791.75],["Гохман Игорь",4595.88],
   ["Павлинов Виталий",4502.08],["Орловский Николай",4249.55],["Абдулов Олимджон",3831.43],
@@ -219,7 +220,8 @@ async function loadLive(from,to,label){
     const earners = (rep.rows||[]).filter(x=>x.parkCommission>0);  // водители с активностью за период
     activeDrivers = earners.length;
     parkCommissionWeek = rep.totals.parkCommission;
-    topDrivers = earners.slice(0,10).map(x=>[x.name, x.parkCommission, x.driverId]);
+    allDrivers = earners.map(x=>[x.name, x.parkCommission, x.driverId]);      // все — для вкладки «Водители»
+    topDrivers = earners.slice(0,10).map(x=>[x.name, x.parkCommission, x.driverId]); // топ-10 — для «Обзора»
     referrals = [];                 // живых привязок рефереров пока нет
     LIVE = true; liveLoaded = true; periodFactor = 1;
     ordersCount = null; ordersByDriver = null;   // сброс на «загрузка», подтянем отдельным запросом
@@ -489,8 +491,8 @@ const PAGES = {
     const waiting = !!sessionStorage.getItem('ref_token') && !liveLoaded;
     const body = waiting
       ? `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">Загрузка данных из Fleet…</td></tr>`
-      : (topDrivers.length
-          ? topDrivers.map(([n,v,did],i)=>{const d = dbDriversByYid ? dbDriversByYid[did] : undefined; const oc = ordersByDriver===null ? '…' : (ordersByDriver[did]!=null ? ordersByDriver[did].toLocaleString('ru-RU') : 0);return `<tr><td class="num muted">${i+1}</td><td>${n}</td><td><span class="code">${d?d.referralCode:('ABCQ'[i%4]+(700+i))}</span></td>${refCells(did)}<td class="num">${oc}</td><td class="num">${fmt(S(v))} ₽</td></tr>`}).join('')
+      : (allDrivers.length
+          ? allDrivers.map(([n,v,did],i)=>{const d = dbDriversByYid ? dbDriversByYid[did] : undefined; const oc = ordersByDriver===null ? '…' : (ordersByDriver[did]!=null ? ordersByDriver[did].toLocaleString('ru-RU') : 0);return `<tr><td class="num muted">${i+1}</td><td>${n}</td><td><span class="code">${d?d.referralCode:('ABCQ'[i%4]+(700+i))}</span></td>${refCells(did)}<td class="num">${oc}</td><td class="num">${fmt(S(v))} ₽</td></tr>`}).join('')
           : `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">Нет данных за период</td></tr>`);
     return periodBar()+`
     <div class="muted" style="margin-bottom:12px">Синхронизируются из Fleet API. У каждого — свой реф-код; можно вручную указать реферера.</div>
