@@ -6,8 +6,8 @@ import { FleetClient } from "@/lib/fleet";
 import { config } from "@/lib/config";
 import { toCents, fromCents } from "@/lib/money";
 
-function idemKey(referrerId: number, referredId: number, from: string, to: string): string {
-  return `ref_${referrerId}_${referredId}_${from}_${to}`.replace(/[:+]/g, "");
+function idemKey(refTag: string, referredId: number, from: string, to: string): string {
+  return `ref_${refTag}_${referredId}_${from}_${to}`.replace(/[:+]/g, "");
 }
 
 // Сумма комиссии парка по водителю за период (комиссия = списание, берём модуль).
@@ -71,7 +71,10 @@ export async function calculatePeriod(from: string, to: string, client = new Fle
 
     const ratio = ratioByCode.get(ref.tariffCode) ?? defaultRatio;
     const payoutCents = Math.round(commissionCents * ratio);
-    const key = idemKey(ref.referrerId, ref.referredId, from, to);
+    // Реферер — водитель (d) или агент (a). Начисление считаем одинаково;
+    // выплата (payout.ts) идёт только водителям, агентам — «только считаем».
+    const refTag = ref.agentId != null ? `a${ref.agentId}` : `d${ref.referrerId}`;
+    const key = idemKey(refTag, ref.referredId, from, to);
 
     const dup = await prisma.referralAccrual.findUnique({ where: { idempotencyKey: key } });
     if (dup || payoutCents < minCents) {
@@ -81,7 +84,8 @@ export async function calculatePeriod(from: string, to: string, client = new Fle
 
     await prisma.referralAccrual.create({
       data: {
-        referrerId: ref.referrerId,
+        referrerId: ref.referrerId ?? null,
+        agentId: ref.agentId ?? null,
         referredId: ref.referredId,
         periodFrom: new Date(from),
         periodTo: new Date(to),

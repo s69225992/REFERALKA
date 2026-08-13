@@ -8,13 +8,16 @@ export async function payPending(client = new FleetClient(), limit = 500) {
   let paid = 0;
   let failed = 0;
 
+  // Выплачиваем только начисления водителям-рефереру (referrerId задан).
+  // Агентам не платим — у них «только считаем» (referrerId = null, agentId задан).
   const pending = await prisma.referralAccrual.findMany({
-    where: { status: "pending" },
+    where: { status: "pending", referrerId: { not: null } },
     take: limit,
     include: { referrer: true },
   });
 
   for (const accrual of pending) {
+    if (!accrual.referrer) continue; // страховка типов: у водительского начисления referrer есть
     const description = `Агентское вознаграждение (реферальная программа) за период ${accrual.periodFrom.toISOString()}—${accrual.periodTo.toISOString()}`;
     const reqPayload = {
       driver_id: accrual.referrer.yandexDriverId,
