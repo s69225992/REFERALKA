@@ -4,7 +4,7 @@
 // Расписание в vercel.json; Vercel шлёт "Authorization: Bearer <CRON_SECRET>".
 import { NextRequest, NextResponse } from "next/server";
 import { config } from "@/lib/config";
-import { syncDay, mskDateStr } from "@/lib/services/dailyStats";
+import { syncDay, mskDateStr, missingDays } from "@/lib/services/dailyStats";
 
 const LIVE_RECENT_DAYS = Number(process.env.LIVE_RECENT_DAYS ?? 4);
 
@@ -18,8 +18,14 @@ export async function GET(req: NextRequest) {
   }
   try {
     config.assertFleet();
-    const result = await syncDay(mskDateStr(LIVE_RECENT_DAYS)); // день на границе живого окна (уже устоялся)
-    return NextResponse.json({ ok: true, result });
+    // 1) устоявшийся день на границе живого окна
+    const boundary = mskDateStr(LIVE_RECENT_DAYS);
+    const results = [await syncDay(boundary)];
+    // 2) самозаполнение: докинуть до 3 пропущенных старых дней за последние 30 суток
+    //    (за несколько ночей склад догоняет месяц истории без ручного бэкфилла)
+    const gaps = (await missingDays(mskDateStr(30), mskDateStr(LIVE_RECENT_DAYS))).slice(0, 3);
+    for (const d of gaps) results.push(await syncDay(d));
+    return NextResponse.json({ ok: true, boundary, backfilled: gaps, results });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
   }
