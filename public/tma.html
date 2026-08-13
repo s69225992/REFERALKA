@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Рефералка — кабинет реферера</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg: var(--tg-theme-bg-color, #ffffff);
+    --text: var(--tg-theme-text-color, #0f172a);
+    --hint: var(--tg-theme-hint-color, #64748b);
+    --card: var(--tg-theme-secondary-bg-color, #f1f5f9);
+    --accent: var(--tg-theme-button-color, #2563eb);
+    --accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --link: var(--tg-theme-link-color, #2563eb);
+    --line: rgba(0,0,0,.08);
+    --green:#16a34a; --amber:#d97706;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:520px;margin:0 auto;padding:16px 14px 40px}
+  .center{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;color:var(--hint)}
+  .spinner{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px}
+  .hint{color:var(--hint);font-size:13px}
+  .greet{font-size:14px;color:var(--hint);margin:2px 0 14px}
+  h1{font-size:20px;margin:0 0 2px}
+  .codeCard{background:linear-gradient(135deg,var(--accent),#4f46e5);color:var(--accent-text);border-radius:18px;padding:18px;text-align:center;margin-bottom:14px}
+  .codeCard .lbl{opacity:.85;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .code{font-size:30px;font-weight:800;letter-spacing:3px;margin:6px 0 12px;font-family:ui-monospace,Menlo,monospace}
+  .btn{display:block;width:100%;border:0;border-radius:12px;background:var(--accent);color:var(--accent-text);font:600 15px system-ui;padding:13px;cursor:pointer}
+  .btn.ghost{background:rgba(255,255,255,.18);color:var(--accent-text)}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .stat{background:var(--card);border-radius:14px;padding:14px}
+  .stat .v{font-size:22px;font-weight:800}
+  .stat .k{color:var(--hint);font-size:12px;margin-top:2px}
+  .sec{font-weight:700;font-size:14px;margin:16px 2px 8px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  .nm{font-weight:600}
+  .sub{color:var(--hint);font-size:12px}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:700}
+  .badge.on{background:rgba(22,163,74,.15);color:var(--green)}
+  .badge.pend{background:rgba(217,119,6,.15);color:var(--amber)}
+  .track{height:6px;border-radius:6px;background:var(--line);overflow:hidden;width:90px}
+  .fill{height:100%;background:var(--accent)}
+  input{width:100%;box-sizing:border-box;padding:13px;border:1px solid var(--line);border-radius:12px;font-size:16px;background:var(--bg);color:var(--text);text-align:center;letter-spacing:2px;text-transform:uppercase}
+  .msg{color:#dc2626;font-size:13px;min-height:18px;text-align:center;margin:8px 0 0}
+  .empty{color:var(--hint);text-align:center;padding:14px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="center"><div class="spinner"></div><div>Загрузка…</div></div>
+</div>
+
+<script>
+const TH = 15; // порог квалификации (позже — из настроек программы)
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+const app = document.getElementById('app');
+const fmt = n => (Math.round(Number(n||0)*100)/100).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function screenInfo(title, text){
+  app.innerHTML = `<div class="center"><div style="font-size:34px">🔗</div><h1>${title}</h1><div class="hint" style="max-width:300px">${text}</div></div>`;
+}
+
+async function api(path, body){
+  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
+  return r.json().catch(()=>({ok:false, error:'Ошибка сети'}));
+}
+
+function renderOnboarding(tgName){
+  app.innerHTML = `
+    <div style="text-align:center;margin:24px 0 6px">
+      <div style="font-size:34px">👋</div>
+      <h1>Привет${tgName?', '+tgName:''}!</h1>
+      <div class="greet">Введите ваш реферальный код, чтобы открыть кабинет. Код выдаёт менеджер парка.</div>
+    </div>
+    <div class="card">
+      <input id="code" placeholder="ВАШ КОД" maxlength="12" autocomplete="off">
+      <div class="msg" id="msg"></div>
+      <button class="btn" id="go" style="margin-top:12px">Войти</button>
+    </div>`;
+  const go = document.getElementById('go'), msg = document.getElementById('msg'), inp = document.getElementById('code');
+  inp.focus();
+  go.onclick = async () => {
+    const code = (inp.value||'').trim();
+    if(!code){ msg.textContent='Введите код'; return; }
+    go.disabled=true; go.textContent='Проверка…'; msg.textContent='';
+    const j = await api('/api/tma/link', {initData: tg ? tg.initData : '', code});
+    if(j.ok && j.linked){ renderCabinet(j.cabinet, tgName); if(tg) tg.HapticFeedback && tg.HapticFeedback.notificationOccurred('success'); }
+    else { msg.textContent = j.error || 'Не удалось привязать'; go.disabled=false; go.textContent='Войти'; }
+  };
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') go.click(); });
+}
+
+function renderCabinet(cab, tgName){
+  if(!cab){ screenInfo('Кабинет пуст','Данные не найдены'); return; }
+  const p = cab.referrer||{}, t = cab.totals||{};
+  const refRows = (cab.referred||[]).length
+    ? cab.referred.map(r=>{
+        const q=r.qualifyingOrders||0, active=!!r.activatedAt, pct=Math.min(100,Math.round(q/TH*100));
+        return `<div class="row"><div><div class="nm">${r.name||r.code||'—'}</div><div class="sub">тариф ${r.tariffCode||'—'}</div></div>
+          <div>${active?'<span class="badge on">активен</span>':`<span class="sub" style="display:inline-flex;align-items:center;gap:6px"><span class="track"><span class="fill" style="width:${pct}%"></span></span>${q}/${TH}</span>`}</div></div>`;
+      }).join('')
+    : '<div class="empty">Пока нет приведённых</div>';
+  const accRows = (cab.accruals||[]).length
+    ? cab.accruals.map(a=>`<div class="row"><div class="sub">${(a.periodFrom||'').slice(0,10)} — ${(a.periodTo||'').slice(0,10)}</div>
+        <div style="text-align:right"><div class="nm">${fmt(a.amount)} ₽</div><div><span class="badge ${a.status==='paid'?'on':'pend'}">${a.status==='paid'?'выплачено':'ожидает'}</span></div></div></div>`).join('')
+    : '<div class="empty">Начислений пока нет</div>';
+
+  app.innerHTML = `
+    <h1>${p.name||'Кабинет реферера'}</h1>
+    <div class="greet">${p.type==='agent'?'Агент':'Водитель-реферер'}${tgName?' · '+tgName:''}</div>
+
+    <div class="codeCard">
+      <div class="lbl">Ваш реферальный код</div>
+      <div class="code">${p.code||''}</div>
+      <button class="btn ghost" id="share">Пригласить водителя</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="v">${t.referredActive||0} / ${t.referredTotal||0}</div><div class="k">активных / всего</div></div>
+      <div class="stat"><div class="v">${fmt(t.accrued)} ₽</div><div class="k">начислено всего</div></div>
+    </div>
+
+    <div class="sec">Приведённые водители</div>
+    <div class="card" style="padding:2px 16px">${refRows}</div>
+
+    <div class="sec">Начисления</div>
+    <div class="card" style="padding:2px 16px">${accRows}</div>`;
+
+  const share = document.getElementById('share');
+  if(share) share.onclick = () => {
+    const text = `Приглашаю в наш таксопарк! Назови мой реферальный код при подключении: ${p.code}`;
+    if(tg && tg.openTelegramLink){ tg.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent('https://referalka.vercel.app')+'&text='+encodeURIComponent(text)); }
+    else { navigator.clipboard && navigator.clipboard.writeText(p.code); }
+    if(tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+  };
+}
+
+(async function init(){
+  if(tg){ tg.ready(); tg.expand(); }
+  if(!tg || !tg.initData){
+    screenInfo('Откройте в Telegram', 'Эта страница — мини-приложение. Откройте его через бота таксопарка в Telegram.');
+    return;
+  }
+  const j = await api('/api/tma/auth', {initData: tg.initData});
+  if(!j.ok){
+    screenInfo('Пока недоступно', j.error && j.error.indexOf('TELEGRAM_BOT_TOKEN')>=0
+      ? 'Приложение ещё настраивается администратором.'
+      : (j.error || 'Не удалось войти'));
+    return;
+  }
+  if(j.linked) renderCabinet(j.cabinet, j.tgName);
+  else renderOnboarding(j.tgName);
+})();
+</script>
+</body>
+</html>
