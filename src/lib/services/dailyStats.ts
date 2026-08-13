@@ -79,3 +79,95 @@ export async function periodStats(fromDate: string, toDate: string) {
     _sum: { orders: true, parkCommission: true },
   });
 }
+
+// Любую дату/ISO приводим к московской дате YYYY-MM-DD (кабинет шлёт ...+03:00 — берём как есть).
+export function mskDateFromAny(s: string): string {
+  const t = new Date(s);
+  if (isNaN(t.getTime())) return mskDateStr(0);
+  return new Date(t.getTime() + MSK_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+// Сколько последних дней тянуть живьём (остальное — из склада). Старше — «закрытые» дни.
+const LIVE_RECENT_DAYS = Number(process.env.LIVE_RECENT_DAYS ?? 4);
+
+// Склейка периода: старые дни берём из склада, последние LIVE_RECENT_DAYS — живьём из Fleet.
+// opts выбирает, что тянуть живьём: {commission} для отчёта, {orders} для счётчика заказов
+// (склад всегда содержит и то и другое; живой вызов делаем только для нужного).
+export async function hybridPeriod(
+  fromDate: string,
+  toDate: string,
+  opts: { commission?: boolean; orders?: boolean } = {},
+) {
+  const recentFrom = mskDateStr(LIVE_RECENT_DAYS - 1); // первый «живой» день (напр. 3 дня назад)
+  const storedTo = mskDateStr(LIVE_RECENT_DAYS); // последний «закрытый» день (напр. 4 дня назад)
+
+  const storedToEff = toDate < storedTo ? toDate : storedTo;
+  const useStored = fromDate <= storedToEff;
+  const liveFromEff = fromDate > recentFrom ? fromDate : recentFrom;
+  const useLive = liveFromEff <= toDate;
+
+  type Acc = { name: string; parkCommission: number; orders: number };
+  const acc = new Map<string, Acc>();
+  const ensure = (yid: string): Acc => {
+    let e = acc.get(yid);
+    if (!e) {
+      e = { name: "", parkCommission: 0, orders: 0 };
+      acc.set(yid, e);
+    }
+    return e;
+  };
+
+  // --- старая часть: из склада ---
+  if (useStored) {
+    const rows = await periodStats(fromDate, storedToEff);
+    const drivers = await prisma.driver.findMany({
+      select: { id: true, yandexDriverId: true, fullName: true },
+    });
+    const meta = new Map<number, { yandexDriverId: string; fullName: string | null }>(
+      drivers.map((d: { id: number; yandexDriverId: string; fullName: string | null }) => [
+        d.id,
+        { yandexDriverId: d.yandexDriverId, fullName: d.fullName },
+      ]),
+    );
+    for (const r of rows as Array<{ driverId: number; _sum: { parkCommission: number | null; orders: number | null } }>) {
+      const m = meta.get(r.driverId);
+      if (!m) continue;
+      const e = ensure(m.yandexDriverId);
+      e.name = m.fullName || e.name;
+      e.parkCommission += Number(r._sum.parkCommission || 0);
+      e.orders += Number(r._sum.orders || 0);
+    }
+  }
+
+  // --- свежая часть: живьём из Fleet ---
+  if (useLive) {
+    const client = new FleetClient();
+    const winFrom = mskDayWindow(liveFromEff).from;
+    const winTo = mskDayWindow(toDate).to;
+    const [report, orders] = await Promise.all([
+      opts.commission ? buildTestReport(winFrom, winTo, client) : Promise.resolve(null),
+      opts.orders ? client.ordersByDriver(winFrom, winTo) : Promise.resolve(null),
+    ]);
+    if (report) {
+      for (const r of report.rows) {
+        const e = ensure(r.driverId);
+        e.name = e.name || r.name;
+        e.parkCommission += r.parkCommission;
+      }
+    }
+    if (orders) {
+      const bd = (orders.byDriver ?? {}) as Record<string, number>;
+      for (const [yid, c] of Object.entries(bd)) {
+        ensure(yid).orders += Number(c) || 0;
+      }
+    }
+  }
+
+  return {
+    acc,
+    split: {
+      stored: useStored ? { from: fromDate, to: storedToEff } : null,
+      live: useLive ? { from: liveFromEff, to: toDate } : null,
+    },
+  };
+}
