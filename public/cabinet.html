@@ -318,7 +318,7 @@ const myRefs = ()=>referrals.filter(r=>r.referrer==="Карен Овсепян")
 // ===== Меню =====
 const MENUS = {
   manager:[
-    ["overview","📊","Обзор"],["drivers","🧑‍🔧","Водители"],["referrals","🔗","Рефералы"],
+    ["overview","📊","Обзор"],["drivers","🧑","Водители"],["referrals","🔗","Рефералы"],
     ["accruals","💰","Начисления"],["payouts","🏦","Выплаты"],["tariffs","🏷️","Тарифы"],
     ["oferta","📄","Оферта"],["settings","⚙️","Настройки"]
   ],
@@ -339,7 +339,7 @@ function render(){
   if(role==='manager'){document.getElementById('avatar').textContent='М';document.getElementById('avatar').style.background='#3b6fe0';document.getElementById('whoName').textContent='Менеджер парка';document.getElementById('whoRole').textContent='Администратор';}
   else{document.getElementById('avatar').textContent='К';document.getElementById('avatar').style.background='#1a9e57';document.getElementById('whoName').textContent=me.name;document.getElementById('whoRole').textContent='Реферер (агент)';}
   const nav=document.getElementById('nav');nav.innerHTML='';
-  MENUS[role].forEach(([id,ic,label])=>{const a=document.createElement('a');a.className=(id===page?'active':'');a.onclick=()=>go(id);a.innerHTML=`<span class="ic">${ic}</span> ${label}`;nav.appendChild(a);});
+  MENUS[role].forEach(([id,ic,label])=>{const a=document.createElement('a');a.className=(id===page?'active':'');a.onclick=()=>go(id);a.innerHTML=ic?`<span class="ic">${ic}</span> ${label}`:label;nav.appendChild(a);});
   document.getElementById('pageTitle').textContent = MENUS[role].find(m=>m[0]===page)[2];
   document.getElementById('content').innerHTML = PAGES[page]();
 }
