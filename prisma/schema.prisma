@@ -47,7 +47,9 @@ model Agent {
   status       String   @default("active") // active | blocked
   createdAt    DateTime @default(now()) @map("created_at")
 
-  account Account?
+  account   Account?
+  referrals Referral[]        @relation("AgentReferrals")
+  accruals  ReferralAccrual[] @relation("AgentAccruals")
   @@map("agents")
 }
 
@@ -109,16 +111,21 @@ model ProgramSetting {
 
 model Referral {
   id         Int      @id @default(autoincrement())
-  referrerId Int      @map("referrer_id")
+  referrerId Int?     @map("referrer_id") // водитель-реферер (nullable)
+  agentId    Int?     @map("agent_id")    // ИЛИ агент-реферер (ровно одно из двух)
   referredId Int      @unique @map("referred_id")
   tariffCode String   @default("3_1") @map("tariff_code")
   active     Boolean  @default(true)
+  qualifyingOrders Int @default(0) @map("qualifying_orders") // прогресс квалификации
+  activatedAt DateTime? @map("activated_at")                 // когда достигнут порог (иначе не активен)
   createdAt  DateTime @default(now()) @map("created_at")
 
-  referrer Driver @relation("ReferrerLinks", fields: [referrerId], references: [id])
-  referred Driver @relation("ReferredLink", fields: [referredId], references: [id])
+  referrer Driver? @relation("ReferrerLinks", fields: [referrerId], references: [id])
+  agent    Agent?  @relation("AgentReferrals", fields: [agentId], references: [id])
+  referred Driver  @relation("ReferredLink", fields: [referredId], references: [id])
 
   @@index([referrerId])
+  @@index([agentId])
   @@map("referrals")
 }
 
@@ -151,7 +158,8 @@ model CommissionSnapshot {
 
 model ReferralAccrual {
   id             Int      @id @default(autoincrement())
-  referrerId     Int      @map("referrer_id")
+  referrerId     Int?     @map("referrer_id") // водитель-реферер (nullable)
+  agentId        Int?     @map("agent_id")    // ИЛИ агент-реферер
   referredId     Int      @map("referred_id")
   periodFrom     DateTime @map("period_from")
   periodTo       DateTime @map("period_to")
@@ -164,10 +172,12 @@ model ReferralAccrual {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  referrer Driver @relation("AccrualReferrer", fields: [referrerId], references: [id])
-  referred Driver @relation("AccrualReferred", fields: [referredId], references: [id])
+  referrer Driver? @relation("AccrualReferrer", fields: [referrerId], references: [id])
+  agent    Agent?  @relation("AgentAccruals", fields: [agentId], references: [id])
+  referred Driver  @relation("AccrualReferred", fields: [referredId], references: [id])
 
   @@index([referrerId])
+  @@index([agentId])
   @@map("referral_accruals")
 }
 
