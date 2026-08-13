@@ -80,6 +80,24 @@ export async function periodStats(fromDate: string, toDate: string) {
   });
 }
 
+// Дни в диапазоне [fromDate..toDate], для которых в складе НЕТ ни одной записи (пропуски).
+export async function missingDays(fromDate: string, toDate: string): Promise<string[]> {
+  const from = new Date(`${fromDate}T00:00:00.000Z`);
+  const to = new Date(`${toDate}T00:00:00.000Z`);
+  const rows = await prisma.driverDailyStat.findMany({
+    where: { date: { gte: from, lte: to } },
+    select: { date: true },
+    distinct: ["date"],
+  });
+  const present = new Set(rows.map((r: { date: Date }) => r.date.toISOString().slice(0, 10)));
+  const missing: string[] = [];
+  for (let d = new Date(from); d.getTime() <= to.getTime(); d = new Date(d.getTime() + 86400000)) {
+    const s = d.toISOString().slice(0, 10);
+    if (!present.has(s)) missing.push(s);
+  }
+  return missing;
+}
+
 // Любую дату/ISO приводим к московской дате YYYY-MM-DD (кабинет шлёт ...+03:00 — берём как есть).
 export function mskDateFromAny(s: string): string {
   const t = new Date(s);
