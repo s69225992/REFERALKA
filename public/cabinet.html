@@ -148,6 +148,7 @@ const refEarn = r => { const t=tById(r.tariff); return Math.round(turnoverOf(r.c
 // ===== Период =====
 let periodFactor = 1, periodLabel = "Сегодня";
 let LIVE = false;                     // режим живых данных
+let liveLoaded = false;               // пришли ли уже живые данные (до этого залогиненному показываем «…», а не демо)
 let ordersCount = null;               // кол-во заказов за период (подгружается отдельно; null = загрузка)
 let ordersByDriver = null;            // {driverId: кол-во заказов} за период (null = загрузка)
 const S = n => n*periodFactor;        // масштаб по периоду (только в демо-режиме)
@@ -216,7 +217,7 @@ async function loadLive(from,to,label){
     parkCommissionWeek = rep.totals.parkCommission;
     topDrivers = earners.slice(0,10).map(x=>[x.name, x.parkCommission, x.driverId]);
     referrals = [];                 // живых привязок рефереров пока нет
-    LIVE = true; periodFactor = 1;
+    LIVE = true; liveLoaded = true; periodFactor = 1;
     ordersCount = null; ordersByDriver = null;   // сброс на «загрузка», подтянем отдельным запросом
     setBadge('live');
     render();
@@ -346,23 +347,26 @@ function render(){
 const PAGES = {
   // ===== Менеджер =====
   overview:()=>{
+    // Пока залогинены, но живые данные ещё не пришли — показываем «…», а не демо-числа.
+    const waiting = !!sessionStorage.getItem('ref_token') && !liveLoaded;
     const pend = S(referrals.filter(r=>r.status==='active').reduce((s,r)=>s+refEarn(r),0))*0.4;
+    const agentPay = S(referrals.filter(r=>r.status==='active').reduce((s,r)=>s+refEarn(r),0));
     return periodBar() + `
     <div class="grid">
-      <div class="card"><div class="lbl">Активных водителей</div><div class="val">${activeDrivers}</div><div class="sub">с комиссией за период</div></div>
-      <div class="card"><div class="lbl">Заказов</div><div class="val">${LIVE ? (ordersCount===null ? '…' : (typeof ordersCount==='number' ? ordersCount.toLocaleString('ru-RU') : ordersCount)) : '—'}</div><div class="sub">за выбранный период</div></div>
-      <div class="card"><div class="lbl">Комиссия парка</div><div class="val">${fmt(S(parkCommissionWeek))} ₽</div><div class="sub">за выбранный период</div></div>
-      <div class="card"><div class="lbl">Активных рефералов</div><div class="val">${referrals.filter(r=>r.status==='active').length}</div><div class="sub">пар «привёл → работает»</div></div>
-      <div class="card"><div class="lbl">К выплате агентам</div><div class="val" style="color:var(--amber)">${fmt(pend)} ₽</div><div class="sub">агентское вознаграждение</div></div>
+      <div class="card"><div class="lbl">Активных водителей</div><div class="val">${waiting?'…':activeDrivers}</div><div class="sub">с комиссией за период</div></div>
+      <div class="card"><div class="lbl">Заказов</div><div class="val">${waiting?'…':(LIVE ? (ordersCount===null ? '…' : (typeof ordersCount==='number' ? ordersCount.toLocaleString('ru-RU') : ordersCount)) : '—')}</div><div class="sub">за выбранный период</div></div>
+      <div class="card"><div class="lbl">Комиссия парка</div><div class="val">${waiting?'…':fmt(S(parkCommissionWeek))+' ₽'}</div><div class="sub">за выбранный период</div></div>
+      <div class="card"><div class="lbl">Активных рефералов</div><div class="val">${waiting?'…':referrals.filter(r=>r.status==='active').length}</div><div class="sub">пар «привёл → работает»</div></div>
+      <div class="card"><div class="lbl">К выплате агентам</div><div class="val" style="color:var(--amber)">${waiting?'…':fmt(pend)+' ₽'}</div><div class="sub">агентское вознаграждение</div></div>
     </div>
     <div class="row2">
       <div><div class="sec">Топ водителей по комиссии парка</div>
-        <div class="card">${topDrivers.map(([n,v])=>`<div class="bar"><div class="nm">${n}</div><div class="track"><div class="fill" style="width:${v/topDrivers[0][1]*100}%"></div></div><div class="vv">${fmt(S(v))}</div></div>`).join('')}</div>
+        <div class="card">${waiting ? '<div class="muted" style="padding:8px">Загрузка…</div>' : (topDrivers.length ? topDrivers.map(([n,v])=>`<div class="bar"><div class="nm">${n}</div><div class="track"><div class="fill" style="width:${v/topDrivers[0][1]*100}%"></div></div><div class="vv">${fmt(S(v))}</div></div>`).join('') : '<div class="muted" style="padding:8px">Нет данных за период</div>')}</div>
       </div>
       <div><div class="sec">Расходы на агентов</div>
         <div class="card">
           <div class="lbl">Выплаты рефереам (агентское вознаграждение)</div>
-          <div class="val" style="margin:6px 0;color:var(--accent2)">${fmt(S(referrals.filter(r=>r.status==='active').reduce((s,r)=>s+refEarn(r),0)))} ₽</div>
+          <div class="val" style="margin:6px 0;color:var(--accent2)">${waiting?'…':fmt(agentPay)+' ₽'}</div>
           <div class="sub">учитывается как расходы компании</div>
           <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
           <div class="lbl">Тарифы приглашения</div>
@@ -371,12 +375,20 @@ const PAGES = {
       </div>
     </div>`;
   },
-  drivers:()=>periodBar()+`
+  drivers:()=>{
+    const waiting = !!sessionStorage.getItem('ref_token') && !liveLoaded;
+    const body = waiting
+      ? `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">Загрузка данных из Fleet…</td></tr>`
+      : (topDrivers.length
+          ? topDrivers.map(([n,v,did],i)=>{const r=referrals.find(x=>x.referred.includes(n.split(' ')[1]||'—'));const oc = ordersByDriver===null ? '…' : (ordersByDriver[did]!=null ? ordersByDriver[did].toLocaleString('ru-RU') : 0);return `<tr><td class="num muted">${i+1}</td><td>${n}</td><td><span class="code">${'ABCQ'[i%4]}${700+i}</span></td><td class="muted">${r?r.referrer:'—'}</td><td>${r?`<span class="trf">${tById(r.tariff).name}</span>`:'<span class="muted">—</span>'}</td><td class="num">${oc}</td><td class="num">${fmt(S(v))} ₽</td></tr>`}).join('')
+          : `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">Нет данных за период</td></tr>`);
+    return periodBar()+`
     <div class="muted" style="margin-bottom:12px">Синхронизируются из Fleet API. У каждого — свой реф-код; можно вручную указать реферера.</div>
     <table><thead><tr><th class="num">#</th><th>Водитель</th><th>Код</th><th>Реферер</th><th>Тариф</th><th class="num">Заказов</th><th class="num">Комиссия парка</th></tr></thead><tbody>
-    ${topDrivers.map(([n,v,did],i)=>{const r=referrals.find(x=>x.referred.includes(n.split(' ')[1]||'—'));const oc = ordersByDriver===null ? '…' : (ordersByDriver[did]!=null ? ordersByDriver[did].toLocaleString('ru-RU') : 0);return `<tr><td class="num muted">${i+1}</td><td>${n}</td><td><span class="code">${'ABCQ'[i%4]}${700+i}</span></td><td class="muted">${r?r.referrer:'—'}</td><td>${r?`<span class="trf">${tById(r.tariff).name}</span>`:'<span class="muted">—</span>'}</td><td class="num">${oc}</td><td class="num">${fmt(S(v))} ₽</td></tr>`}).join('')}
-    </tbody><tfoot><tr><td colspan="5" class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">Итого по всем водителям (${activeDrivers})</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${ordersCount===null ? '…' : (typeof ordersCount==='number' ? ordersCount.toLocaleString('ru-RU') : ordersCount)}</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${fmt(S(parkCommissionWeek))} ₽</td></tr></tfoot></table>
-    <div class="muted" style="margin-top:10px;font-size:12px">Показаны 10 из 200. В бою — поиск, фильтры, страницы.</div>`,
+    ${body}
+    </tbody><tfoot><tr><td colspan="5" class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">Итого по всем водителям (${waiting?'…':activeDrivers})</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${waiting?'…':(ordersCount===null ? '…' : (typeof ordersCount==='number' ? ordersCount.toLocaleString('ru-RU') : ordersCount))}</td><td class="num" style="font-weight:700;border-top:2px solid #e2e8f0;padding-top:10px">${waiting?'…':fmt(S(parkCommissionWeek))+' ₽'}</td></tr></tfoot></table>
+    <div class="muted" style="margin-top:10px;font-size:12px">В бою — поиск, фильтры, страницы.</div>`;
+  },
   referrals:()=>periodBar()+`
     <div class="muted" style="margin-bottom:12px">Связи «кто кого привёл» и тариф, на который привели. Реферер получает свой % с оборота приведённого.</div>
     <table><thead><tr><th>Реферер (агент)</th><th>Привёл</th><th>Тариф</th><th class="num">Оборот реферала</th><th class="num">Комиссия парка</th><th class="num">Агенту</th><th>Статус</th></tr></thead><tbody>
@@ -507,8 +519,9 @@ function ofertaDoc(forReferrer){
 
 // ===== Инициализация =====
 (function init(){
-  render();                                   // сразу показываем контент (демо)
   const token = sessionStorage.getItem('ref_token');
+  if(token){ referrals=[]; }                  // залогинен — не показываем демо-данные, ждём живые из Fleet
+  render();
   if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); }
   else { setBadge('demo'); showLogin(); }
 })();
