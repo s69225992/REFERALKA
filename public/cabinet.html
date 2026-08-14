@@ -155,6 +155,7 @@ let ordersCount = null;               // кол-во заказов за пер�
 let ordersByDriver = null;            // {driverId: кол-во заказов} за период (null = загрузка)
 let dbDriversByYid = null;            // yandexId -> запись водителя из нашей БД (реферер и т.п.); null = не загружено
 let agentsList = null;                // список агентов из БД
+let referrersList = null;             // единый список рефереров (агенты + водители-рефереры)
 let linkReqs = null;                  // заявки водителей на привязку (Telegram)
 let impData = null;                   // данные кабинета реферера в режиме «просмотра как»
 const DB_TARIFFS = [['3_1','3 / 1'],['4_1.5','4 / 1,5'],['5_2','5 / 2']]; // коды тарифов как в БД
@@ -259,6 +260,16 @@ async function loadAgents(){
     agentsList = j.agents || [];
   }catch(e){ agentsList = []; }
   if(LIVE && page==='agents') render();
+}
+
+// ===== Рефереры (агенты + водители-рефереры) со статусом «в боте» =====
+async function loadReferrers(){
+  const token = sessionStorage.getItem('ref_token'); if(!token) return;
+  try{
+    const j = await fetch('/api/admin/referrers',{headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    referrersList = j.referrers || [];
+  }catch(e){ referrersList = []; }
+  if(LIVE && page==='referrers') render();
 }
 
 // ===== Заявки на привязку (Telegram) =====
@@ -450,7 +461,7 @@ const myRefs = ()=>referrals.filter(r=>r.referrer==="Карен Овсепян")
 // ===== Меню =====
 const MENUS = {
   manager:[
-    ["overview","📊","Обзор"],["drivers","🧑","Водители"],["agents","🤝","Агенты"],["requests","✅","Заявки"],["referrals","🔗","Рефералы"],
+    ["overview","📊","Обзор"],["drivers","🧑","Водители"],["agents","🤝","Агенты"],["referrers","👥","Рефереры"],["requests","✅","Заявки"],["referrals","🔗","Рефералы"],
     ["accruals","💰","Начисления"],["payouts","🏦","Выплаты"],["tariffs","🏷️","Тарифы"],
     ["oferta","📄","Оферта"],["settings","⚙️","Настройки"]
   ],
@@ -461,7 +472,7 @@ const MENUS = {
 };
 let role="manager", page="overview";
 function setRole(r){ role=r; page=MENUS[r][0][0]; try{sessionStorage.setItem('ref_role',r);sessionStorage.setItem('ref_page',page);}catch(e){} render(); }
-function go(p){ page=p; try{sessionStorage.setItem('ref_page',p);}catch(e){} render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); if(p==='requests' && linkReqs===null) loadLinkReqs(); } }
+function go(p){ page=p; try{sessionStorage.setItem('ref_page',p);}catch(e){} render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='referrers' && referrersList===null) loadReferrers(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); if(p==='requests' && linkReqs===null) loadLinkReqs(); } }
 function setInviteTariff(id){ me.inviteTariff=id; render(); }
 
 function render(){
@@ -546,6 +557,19 @@ const PAGES = {
       </div>
     </div>
     <table><thead><tr><th class="num">#</th><th>ФИО</th><th>Телефон</th><th>Реф-код</th><th>Рождение</th><th>Регистрация</th><th>Устройство</th><th>Регион</th><th class="num">Активных / всего</th><th class="num">Доход</th><th class="num"></th></tr></thead>
+    <tbody>${list}</tbody></table>`;
+  },
+  referrers:()=>{
+    const rows = referrersList||[];
+    const fmtD = s => { if(!s) return '—'; const d=new Date(s); return isNaN(d)?'—':d.toLocaleDateString('ru-RU'); };
+    const linkedN = rows.filter(r=>r.linked).length;
+    const list = referrersList===null
+      ? '<tr><td colspan="10" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
+      : (rows.length ? rows.map((r,i)=>`<tr><td class="num muted">${i+1}</td><td>${r.type==='agent'?'Агент':'Водитель'}</td><td>${r.fullName||'—'}</td><td class="muted" style="font-size:12px">${r.phone||'—'}</td><td><span class="code">${r.code}</span></td><td>${r.linked?'<span class="badge active">✅ в боте</span>':'<span class="badge pending">не заходил</span>'}</td><td class="muted" style="font-size:12px">${r.linked?fmtD(r.linkedAt):'—'}</td><td class="num">${r.referredActive||0} / ${r.referredTotal||0}</td><td class="num">${fmt(r.accrued||0)} ₽</td><td class="num"><button class="btn sec" style="padding:5px 10px;font-size:12px" onclick="openReferrer('${r.type}',${r.id})">Открыть</button></td></tr>`).join('')
+        : '<tr><td colspan="10" class="muted" style="padding:12px;text-align:center">Рефереров пока нет</td></tr>');
+    return `
+    <div class="muted" style="margin-bottom:12px">Все рефереры — агенты и водители-рефереры. «В боте» показывает, зашёл ли человек в мини-приложение (зарегистрировался). ${referrersList!==null?`<b>В боте: ${linkedN} из ${rows.length}.</b>`:''}</div>
+    <table><thead><tr><th class="num">#</th><th>Тип</th><th>ФИО</th><th>Телефон</th><th>Реф-код</th><th>В боте</th><th>Зашёл</th><th class="num">Активных / всего</th><th class="num">Доход</th><th class="num"></th></tr></thead>
     <tbody>${list}</tbody></table>`;
   },
   refcab:()=>{
