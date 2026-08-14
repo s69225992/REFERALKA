@@ -3,11 +3,30 @@
 // role='driver' — ищем водителя по номеру, создаём заявку менеджеру на подтверждение.
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyInitData } from "@/lib/telegram";
+import { verifyInitData, tgDisplayName } from "@/lib/telegram";
 import { normalizePhone } from "@/lib/phone";
 import { referrerCabinetForAccount } from "@/lib/services/referrerData";
 
 export const dynamic = "force-dynamic";
+
+// Генерация уникального реф-кода (единое пространство кодов с водителями).
+const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function randomCode(len = 6): string {
+  let s = "";
+  for (let i = 0; i < len; i++) s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+  return s;
+}
+async function uniqueCode(): Promise<string> {
+  for (let i = 0; i < 50; i++) {
+    const code = randomCode();
+    const [d, a] = await Promise.all([
+      prisma.driver.findUnique({ where: { referralCode: code } }),
+      prisma.agent.findUnique({ where: { referralCode: code } }),
+    ]);
+    if (!d && !a) return code;
+  }
+  return randomCode(8);
+}
 
 export async function POST(req: NextRequest) {
   const { initData, phone, role } = (await req.json().catch(() => ({}))) as {
@@ -23,14 +42,29 @@ export async function POST(req: NextRequest) {
   const telegramId = String(v.user.id);
 
   // ===== АГЕНТ =====
+  // Бот — это и есть система саморегистрации агентов. Если агента с таким номером
+  // ещё нет — заводим его сами (с реф-кодом) и сразу открываем кабинет. Менеджер не нужен.
   if (role === "agent") {
     const agents = await prisma.agent.findMany({ where: { phone: { not: null } }, select: { id: true, phone: true } });
-    const agent = agents.find((a: { id: number; phone: string | null }) => normalizePhone(a.phone) === np);
-    if (!agent) return NextResponse.json({ ok: true, notFound: true, role: "agent" });
+    const found = agents.find((a: { id: number; phone: string | null }) => normalizePhone(a.phone) === np);
+    let agentId: number;
+    if (found) {
+      agentId = found.id;
+    } else {
+      const created = await prisma.agent.create({
+        data: {
+          fullName: tgDisplayName(v.user) || null,
+          phone: (phone || "").trim(),
+          referralCode: await uniqueCode(),
+          status: "active",
+        },
+      });
+      agentId = created.id;
+    }
     const account = await prisma.account.upsert({
       where: { telegramId },
-      create: { telegramId, agentId: agent.id, role: "agent" },
-      update: { agentId: agent.id, role: "agent" },
+      create: { telegramId, agentId, role: "agent" },
+      update: { agentId, role: "agent" },
     });
     const cabinet = await referrerCabinetForAccount(account);
     return NextResponse.json({ ok: true, linked: true, cabinet });
