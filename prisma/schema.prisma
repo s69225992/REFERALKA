@@ -64,11 +64,30 @@ model Account {
   role         String   @default("agent") // admin | manager | agent | driver
   agentId      Int?     @unique @map("agent_id")
   driverId     Int?     @unique @map("driver_id")
+  ofertaAcceptedAt DateTime? @map("oferta_accepted_at") // принятие оферты в мини-аппе
   createdAt    DateTime @default(now()) @map("created_at")
 
   agent  Agent?  @relation(fields: [agentId], references: [id])
   driver Driver? @relation(fields: [driverId], references: [id])
+  withdrawals Withdrawal[]
   @@map("accounts")
+}
+
+// Запрос реферера на вывод средств (подтверждает менеджер/парк).
+model Withdrawal {
+  id         Int       @id @default(autoincrement())
+  accountId  Int       @map("account_id")
+  amount     Decimal   @db.Decimal(12, 2)
+  status     String    @default("requested") // requested | processing | paid | rejected
+  requisites String?
+  decidedBy  Int?      @map("decided_by")
+  decidedAt  DateTime? @map("decided_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  account Account @relation(fields: [accountId], references: [id])
+  @@index([accountId])
+  @@index([status])
+  @@map("withdrawals")
 }
 
 // Заявка на привязку «водитель-агент» к своему Fleet-профилю (подтверждает менеджер).

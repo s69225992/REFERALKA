@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyInitData } from "@/lib/telegram";
 import { normalizePhone } from "@/lib/phone";
-import { referrerCabinet } from "@/lib/services/referrerData";
+import { referrerCabinetForAccount } from "@/lib/services/referrerData";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +27,12 @@ export async function POST(req: NextRequest) {
     const agents = await prisma.agent.findMany({ where: { phone: { not: null } }, select: { id: true, phone: true } });
     const agent = agents.find((a: { id: number; phone: string | null }) => normalizePhone(a.phone) === np);
     if (!agent) return NextResponse.json({ ok: true, notFound: true, role: "agent" });
-    await prisma.account.upsert({
+    const account = await prisma.account.upsert({
       where: { telegramId },
       create: { telegramId, agentId: agent.id, role: "agent" },
       update: { agentId: agent.id, role: "agent" },
     });
-    const cabinet = await referrerCabinet("agent", agent.id);
+    const cabinet = await referrerCabinetForAccount(account);
     return NextResponse.json({ ok: true, linked: true, cabinet });
   }
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     update: {},
   });
   if (account.driverId === driver.id) {
-    const cabinet = await referrerCabinet("driver", driver.id);
+    const cabinet = await referrerCabinetForAccount(account);
     return NextResponse.json({ ok: true, linked: true, cabinet });
   }
   const existing = await prisma.driverLinkRequest.findFirst({

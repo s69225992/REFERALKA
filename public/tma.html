@@ -3,52 +3,112 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Рефералка — кабинет реферера</title>
+<title>ПРАЙМ — кабинет реферера</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  :root{
-    --bg: var(--tg-theme-bg-color, #ffffff);
-    --text: var(--tg-theme-text-color, #0f172a);
-    --hint: var(--tg-theme-hint-color, #64748b);
-    --card: var(--tg-theme-secondary-bg-color, #f1f5f9);
-    --accent: var(--tg-theme-button-color, #2563eb);
-    --accent-text: var(--tg-theme-button-text-color, #ffffff);
-    --link: var(--tg-theme-link-color, #2563eb);
-    --line: rgba(0,0,0,.08);
-    --green:#16a34a; --amber:#d97706;
-  }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:520px;margin:0 auto;padding:16px 14px 40px}
-  .center{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;color:var(--hint)}
-  .spinner{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite}
+  body{margin:0;background:#fff8f0;color:#241a12;font:15px/1.5 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:520px;margin:0 auto;min-height:100vh;position:relative;padding:16px 14px 90px}
+  .center{min-height:78vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;color:#8a7a6b}
+  .spinner{width:26px;height:26px;border:3px solid #ffe0cc;border-top-color:#ff7a3d;border-radius:50%;animation:sp 1s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
-  .card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px}
-  .hint{color:var(--hint);font-size:13px}
-  .greet{font-size:14px;color:var(--hint);margin:2px 0 14px}
-  h1{font-size:20px;margin:0 0 2px}
-  .codeCard{background:linear-gradient(135deg,var(--accent),#4f46e5);color:var(--accent-text);border-radius:18px;padding:18px;text-align:center;margin-bottom:14px}
-  .codeCard .lbl{opacity:.85;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
-  .code{font-size:30px;font-weight:800;letter-spacing:3px;margin:6px 0 12px;font-family:ui-monospace,Menlo,monospace}
-  .btn{display:block;width:100%;border:0;border-radius:12px;background:var(--accent);color:var(--accent-text);font:600 15px system-ui;padding:13px;cursor:pointer}
-  .btn.ghost{background:rgba(255,255,255,.18);color:var(--accent-text)}
-  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-  .stat{background:var(--card);border-radius:14px;padding:14px}
-  .stat .v{font-size:22px;font-weight:800}
-  .stat .k{color:var(--hint);font-size:12px;margin-top:2px}
-  .sec{font-weight:700;font-size:14px;margin:16px 2px 8px}
-  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
-  .row:last-child{border-bottom:0}
-  .nm{font-weight:600}
-  .sub{color:var(--hint);font-size:12px}
-  .badge{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:700}
-  .badge.on{background:rgba(22,163,74,.15);color:var(--green)}
-  .badge.pend{background:rgba(217,119,6,.15);color:var(--amber)}
-  .track{height:6px;border-radius:6px;background:var(--line);overflow:hidden;width:90px}
-  .fill{height:100%;background:var(--accent)}
-  input{width:100%;box-sizing:border-box;padding:13px;border:1px solid var(--line);border-radius:12px;font-size:16px;background:var(--bg);color:var(--text);text-align:center;letter-spacing:2px;text-transform:uppercase}
+  h1{font-size:21px;margin:0 0 4px}
+  .hint{color:#8a7a6b;font-size:13px}
   .msg{color:#dc2626;font-size:13px;min-height:18px;text-align:center;margin:8px 0 0}
-  .empty{color:var(--hint);text-align:center;padding:14px}
+  .empty{color:#a08f80;text-align:center;padding:16px;font-size:13.5px}
+
+  /* фирменная шапка */
+  .brand{display:flex;align-items:center;justify-content:center;gap:11px;margin:4px 0 16px}
+  .logo{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,#ffd23f,#ff9f1c);display:grid;place-items:center;font:900 22px system-ui;color:#241a12;flex:none;box-shadow:0 6px 16px rgba(255,159,28,.45)}
+  .bname{font-weight:900;font-size:18px;letter-spacing:.5px}
+  .btag{font-size:11.5px;opacity:.6}
+
+  /* карточки/кнопки */
+  .card{background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 6px 16px rgba(255,111,74,.08)}
+  .btn{display:block;width:100%;border:0;border-radius:14px;background:linear-gradient(135deg,#ff8a3d,#ff5d6c);color:#fff;font:800 15px system-ui;padding:14px;cursor:pointer;box-shadow:0 10px 22px rgba(255,111,74,.3)}
+  .btn.alt{background:#fff;color:#f2683c;box-shadow:0 6px 14px rgba(255,111,74,.12)}
+  .btn.gold{background:linear-gradient(135deg,#ffd23f,#ff9f1c);color:#241a12;box-shadow:0 10px 22px rgba(255,159,28,.34)}
+  .btn:disabled{opacity:.6}
+  input{width:100%;box-sizing:border-box;padding:13px;border:1.5px solid #ffd9c2;border-radius:12px;font-size:16px;background:#fff;color:#241a12;text-align:center}
+
+  /* доход — герой, кликабельный */
+  .income{background:linear-gradient(135deg,#ff8a3d,#ff5d6c);color:#fff;border-radius:22px;padding:18px 18px 16px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:0 14px 30px rgba(255,111,74,.4);cursor:pointer}
+  .income::after{content:"";position:absolute;right:-30px;top:-40px;width:150px;height:150px;background:rgba(255,255,255,.13);border-radius:50%}
+  .income::before{content:"";position:absolute;left:-20px;bottom:-50px;width:120px;height:120px;background:rgba(255,255,255,.1);border-radius:50%}
+  .pill{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.22);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:800;position:relative;z-index:1;margin-bottom:12px}
+  .il{font-size:12.5px;opacity:.92;font-weight:600;position:relative}
+  .iv{font:900 42px/1 system-ui;letter-spacing:-1px;margin:7px 0 4px;position:relative}
+  .ihint{font-size:12px;opacity:.85;position:relative}
+  .tapme{position:absolute;right:16px;bottom:14px;font-size:11px;font-weight:800;opacity:.9;z-index:1}
+
+  /* код + пригласить */
+  .invrow{display:flex;gap:10px;margin-bottom:14px}
+  .codebox{flex:none;background:#fff;border:2px dashed #ffcaa6;border-radius:14px;padding:8px 14px;text-align:center}
+  .codebox .cl{font-size:9px;text-transform:uppercase;color:#c9761f;font-weight:800;letter-spacing:.5px}
+  .codebox .cv{font:800 18px/1 ui-monospace,Menlo,monospace;letter-spacing:2px;color:#f2683c;margin-top:3px}
+  .invbtn{flex:1;border:0;border-radius:14px;background:linear-gradient(135deg,#ffd23f,#ff9f1c);color:#241a12;font:800 14px system-ui;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 8px 18px rgba(255,159,28,.34)}
+
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .stat{border-radius:16px;padding:14px;background:#fff;box-shadow:0 6px 14px rgba(255,111,74,.1)}
+  .stat .v{font-size:21px;font-weight:800;color:#f2683c;line-height:1}
+  .stat .k{font-size:11.5px;margin-top:6px;opacity:.65}
+
+  .sec{font-weight:800;font-size:14px;margin:16px 2px 10px;display:flex;align-items:center;gap:6px}
+  .item{border-radius:15px;padding:12px 14px;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;box-shadow:0 6px 14px rgba(255,111,74,.09)}
+  .inm{font-weight:700;font-size:14px}
+  .isub{font-size:12px;opacity:.6;margin-top:2px}
+  .chip{font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .chip.on{background:#fff0d6;color:#d98a00}
+  .chip.paid{background:#e3fbf0;color:#12a566}
+  .chip.rej{background:#fde8e8;color:#d64545}
+  .track{height:7px;border-radius:7px;overflow:hidden;width:72px;background:#ffe6d6}
+  .fill{height:100%;background:linear-gradient(90deg,#ffd23f,#ff9f1c)}
+  .prog{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;opacity:.85}
+
+  .back{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:700;color:#f2683c;margin-bottom:12px;cursor:pointer}
+
+  /* доходы — период */
+  .seg{display:flex;gap:6px;margin-bottom:12px}
+  .seg .s{flex:1;text-align:center;padding:9px 0;border-radius:11px;font-size:12.5px;font-weight:700;background:#fff;color:#a8917c;cursor:pointer;box-shadow:0 4px 10px rgba(255,111,74,.08)}
+  .seg .s.on{background:linear-gradient(135deg,#ff8a3d,#ff5d6c);color:#fff;box-shadow:0 8px 16px rgba(255,111,74,.32)}
+  .daterow{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1.5px dashed #ffcaa6;border-radius:13px;padding:11px 14px;margin-bottom:14px;font-size:12.5px;font-weight:700;color:#7a6858;cursor:pointer}
+  .daterow .dr{color:#f2683c;font-weight:800}
+  .bignum{background:#fff;border-radius:20px;padding:18px;text-align:center;margin-bottom:14px;box-shadow:0 8px 20px rgba(255,111,74,.12)}
+  .bignum .bl{font-size:12px;opacity:.6;font-weight:700}
+  .bignum .bv{font:900 34px/1 system-ui;color:#f2683c;margin:8px 0 4px}
+  .bignum .bd{font-size:12px;opacity:.7}
+
+  /* календарь */
+  .cal{background:#fff;border-radius:18px;padding:14px;margin-bottom:14px;box-shadow:0 6px 16px rgba(255,111,74,.1)}
+  .calhead{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:800;margin-bottom:12px}
+  .cnav{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:#fff3e9;color:#f2683c;font-weight:800;cursor:pointer;user-select:none}
+  .cgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+  .cdow span{font-size:10.5px;color:#b09a89;font-weight:700;padding-bottom:4px}
+  .cd{aspect-ratio:1;display:grid;place-items:center;font-size:12.5px;font-weight:600;border-radius:9px;cursor:pointer;color:#3a3229;user-select:none}
+  .cd.mut{color:#d9c8ba;pointer-events:none}
+  .cd.rng{background:#fff0e6;color:#e0632f;border-radius:0}
+  .cd.rs{background:#ff8a3d;color:#fff;border-radius:9px 0 0 9px}
+  .cd.re{background:#ff5d6c;color:#fff;border-radius:0 9px 9px 0}
+  .cd.one{background:linear-gradient(135deg,#ff8a3d,#ff5d6c);color:#fff;border-radius:9px}
+
+  /* выводы */
+  .balance{background:linear-gradient(135deg,#12b886,#0aa6c9);color:#fff;border-radius:22px;padding:20px;margin-bottom:14px;text-align:center;box-shadow:0 14px 30px rgba(16,185,129,.34)}
+  .balance .bl{font-size:12.5px;opacity:.9}
+  .balance .bv{font:900 36px/1 system-ui;margin:8px 0 14px}
+  .balance .bbtn{display:block;width:100%;border:0;border-radius:14px;background:#fff;color:#0f9d6a;font:800 15px system-ui;padding:13px;cursor:pointer}
+  .balance .bbtn:disabled{opacity:.7}
+
+  /* оферта */
+  .doc{background:#fff;border-radius:18px;padding:18px;box-shadow:0 6px 16px rgba(255,111,74,.1);font-size:13.5px;line-height:1.6;color:#3a3229}
+  .doc h3{margin:0 0 10px;font-size:16px}
+  .doc p{margin:0 0 10px}
+  .accept{display:flex;align-items:center;gap:9px;margin-top:12px;background:#eaf9f0;border-radius:12px;padding:12px;font-size:13px;font-weight:700;color:#12a566}
+
+  /* нижняя навигация */
+  .nav{position:fixed;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;height:66px;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-top:1px solid #ffe3cf;display:flex;padding:8px 6px;z-index:20}
+  .nav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:700;color:#b09a89;cursor:pointer}
+  .nav a.on{color:#f2683c}
+  .nav a .ic{font-size:20px}
 </style>
 </head>
 <body>
@@ -57,50 +117,58 @@
 </div>
 
 <script>
-const TH = 15; // порог квалификации (позже — из настроек программы)
+const TH = 15; // порог квалификации
+const BOT = 'Parkprimebot';
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 const app = document.getElementById('app');
 const fmt = n => (Math.round(Number(n||0)*100)/100).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
-
-function screenInfo(title, text){
-  app.innerHTML = `<div class="center"><div style="font-size:34px">🔗</div><h1>${title}</h1><div class="hint" style="max-width:300px">${text}</div></div>`;
-}
+const fmt0 = n => Math.round(Number(n||0)).toLocaleString('ru-RU');
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const haptic = t => { try{ tg&&tg.HapticFeedback&&tg.HapticFeedback.impactOccurred(t||'light'); }catch(e){} };
 
 async function api(path, body){
   const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
   return r.json().catch(()=>({ok:false, error:'Ошибка сети'}));
 }
 
-function renderPending(driverName){
-  app.innerHTML = `<div class="center">
-    <div style="font-size:40px">⏳</div>
-    <h1>Заявка отправлена</h1>
-    <div class="hint" style="max-width:300px">Мы нашли${driverName?' <b>'+driverName+'</b>':' водителя'} в парке. Менеджер подтвердит привязку — после этого откроется ваш кабинет. Загляните позже.</div>
-  </div>`;
+/* ===== состояние ===== */
+let ID='';           // initData
+let CAB=null;         // данные кабинета
+let TGNAME='';
+let SECTION='cabinet';
+let INCV='income';    // подэкран доходов: 'income' | 'calendar'
+let period='all';     // week | month | all | custom
+let cFrom=null, cTo=null;       // выбранный период (Date)
+let calY, calM;                 // отображаемый месяц календаря
+let selStart=null, selEnd=null; // выбор в календаре
+
+/* ===== брендовая шапка ===== */
+function head(sub){
+  return `<div class="brand"><div class="logo">P</div><div><div class="bname">ПРАЙМ</div><div class="btag">${sub||'Будь в ПРАЙМЕ ✨'}</div></div></div>`;
+}
+function screenInfo(title, text, emoji){
+  app.innerHTML = `<div class="center"><div style="font-size:38px">${emoji||'🔗'}</div><h1>${title}</h1><div class="hint" style="max-width:300px">${text}</div></div>`;
 }
 
-let ID = ''; // initData, выставляется в init
-
-// Шаг 0: с чего начать (номер уже пришёл вебхуком или нет)
+/* ========================================================= ОНБОРДИНГ ========================================================= */
 function startFlow(tgName, registeredPhone){
   if(registeredPhone) renderRole(registeredPhone, tgName);
   else renderPhoneStep(tgName);
 }
 
-// Шаг 1: регистрация номера (поделиться из Telegram или ввести вручную)
 function renderPhoneStep(tgName){
   const canShare = tg && typeof tg.requestContact === 'function';
-  app.innerHTML = `
-    <div style="text-align:center;margin:26px 0 8px">
-      <div style="font-size:34px">👋</div>
-      <h1>Привет${tgName?', '+tgName:''}!</h1>
-      <div class="greet">Для входа в кабинет зарегистрируйте свой номер телефона.</div>
+  app.innerHTML = `${head()}
+    <div style="text-align:center;margin:18px 0 6px">
+      <div style="font-size:36px">👋</div>
+      <h1>Привет${tgName?', '+esc(tgName):''}!</h1>
+      <div class="hint" style="margin-top:4px">Зарегистрируйте номер телефона — и откроется кабинет.</div>
     </div>
     <div class="card">
-      ${canShare?`<button class="btn" id="share">📱 Поделиться номером</button><div class="hint" style="text-align:center;margin:12px 0 8px">или введите вручную</div>`:''}
-      <input id="phone" type="tel" inputmode="tel" placeholder="+7 999 123-45-67" autocomplete="tel" style="text-transform:none">
+      ${canShare?`<button class="btn gold" id="share">📱 Поделиться номером</button><div class="hint" style="text-align:center;margin:12px 0 8px">или введите вручную</div>`:''}
+      <input id="phone" type="tel" inputmode="tel" placeholder="+7 999 123-45-67" autocomplete="tel">
       <div class="msg" id="msg"></div>
-      <button class="btn ${canShare?'ghost':''}" id="goManual" style="margin-top:10px${canShare?';background:var(--card);color:var(--text)':''}">Далее</button>
+      <button class="btn ${canShare?'alt':''}" id="goManual" style="margin-top:10px">Далее</button>
     </div>`;
   const msg = document.getElementById('msg');
   if(canShare){
@@ -119,27 +187,25 @@ function renderPhoneStep(tgName){
   inp.addEventListener('keydown', e=>{ if(e.key==='Enter') goManual.click(); });
 }
 
-// После «Поделиться номером» номер приходит вебхуком — опрашиваем сервер
 async function pollRegistered(tgName, tries){
   const j = await api('/api/tma/auth', {initData: ID});
-  if(j.ok && j.linked){ renderCabinet(j.cabinet, j.tgName); return; }
-  if(j.ok && j.registeredPhone){ if(tg&&tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); renderRole(j.registeredPhone, tgName); return; }
+  if(j.ok && j.linked){ enterCabinet(j.cabinet, j.tgName); return; }
+  if(j.ok && j.registeredPhone){ haptic('light'); renderRole(j.registeredPhone, tgName); return; }
   if(tries < 8){ setTimeout(()=>pollRegistered(tgName, tries+1), 1200); return; }
   const b=document.getElementById('share'); if(b){ b.disabled=false; b.textContent='📱 Поделиться номером'; }
   const m=document.getElementById('msg'); if(m) m.textContent='Не получили номер автоматически — введите вручную ниже.';
 }
 
-// Шаг 2: кто вы — агент или водитель
 function renderRole(regPhone, tgName){
-  app.innerHTML = `
-    <div style="text-align:center;margin:26px 0 16px">
-      <div class="hint">Ваш номер: <b>${regPhone}</b></div>
+  app.innerHTML = `${head()}
+    <div style="text-align:center;margin:18px 0 16px">
+      <div class="hint">Ваш номер: <b>${esc(regPhone)}</b></div>
       <h1 style="margin-top:8px">Вы агент или водитель?</h1>
-      <div class="greet">Выберите, кто вы — откроется нужный кабинет.</div>
+      <div class="hint" style="margin-top:4px">Выберите, кто вы — откроется нужный кабинет.</div>
     </div>
     <div style="display:flex;gap:12px">
-      <button class="btn" id="rAgent" style="flex:1;padding:20px 8px;line-height:1.3">🤝<br>Агент</button>
-      <button class="btn" id="rDriver" style="flex:1;padding:20px 8px;line-height:1.3;background:var(--card);color:var(--text)">🚗<br>Водитель-реферал</button>
+      <button class="btn" id="rAgent" style="flex:1;padding:22px 8px;line-height:1.3">🤝<br>Агент</button>
+      <button class="btn alt" id="rDriver" style="flex:1;padding:22px 8px;line-height:1.3">🚗<br>Водитель-<br>реферал</button>
     </div>
     <div class="msg" id="msg"></div>`;
   document.getElementById('rAgent').onclick = ()=>doAgent(regPhone, tgName);
@@ -149,108 +215,295 @@ function renderRole(regPhone, tgName){
 async function doAgent(regPhone, tgName){
   const msg=document.getElementById('msg'); if(msg) msg.textContent='Проверка…';
   const j = await api('/api/tma/phone', {initData: ID, role:'agent', phone: regPhone});
-  if(j.ok && j.linked){ renderCabinet(j.cabinet, tgName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
+  if(j.ok && j.linked){ enterCabinet(j.cabinet, tgName); haptic('medium'); }
   else if(j.ok && j.notFound){
-    app.innerHTML = `<div class="center"><div style="font-size:36px">🔎</div><h1>Агент не найден</h1><div class="hint" style="max-width:300px">По номеру <b>${regPhone}</b> агент в системе не найден. Обратитесь к менеджеру парка — он заведёт вас с этим номером.</div><button class="btn" id="back" style="margin-top:16px;max-width:240px">Назад</button></div>`;
+    app.innerHTML = `${head()}<div class="center"><div style="font-size:38px">🔎</div><h1>Агент не найден</h1><div class="hint" style="max-width:300px">По номеру <b>${esc(regPhone)}</b> агент не найден. Обратитесь к менеджеру парка — он заведёт вас с этим номером.</div><button class="btn alt" id="back" style="margin-top:16px;max-width:240px">Назад</button></div>`;
     document.getElementById('back').onclick=()=>renderRole(regPhone, tgName);
   }
   else { if(msg) msg.textContent=j.error||'Ошибка'; }
 }
 
-// Шаг 3 (водитель): в парке этот же номер или другой
 function renderDriverChoice(regPhone, tgName){
-  app.innerHTML = `
-    <div style="text-align:center;margin:26px 0 16px">
-      <div class="hint">Ваш номер: <b>${regPhone}</b></div>
+  app.innerHTML = `${head()}
+    <div style="text-align:center;margin:18px 0 16px">
+      <div class="hint">Ваш номер: <b>${esc(regPhone)}</b></div>
       <h1 style="margin-top:8px">Номер в парке</h1>
-      <div class="greet">В парке вы зарегистрированы под этим же номером или под другим?</div>
+      <div class="hint" style="margin-top:4px">В парке вы зарегистрированы под этим же номером или под другим?</div>
     </div>
     <div style="display:flex;gap:12px">
       <button class="btn" id="same" style="flex:1;padding:16px 8px">Этот же</button>
-      <button class="btn" id="other" style="flex:1;padding:16px 8px;background:var(--card);color:var(--text)">Другой</button>
+      <button class="btn alt" id="other" style="flex:1;padding:16px 8px">Другой</button>
     </div>
     <div class="card" id="otherCard" style="display:none;margin-top:14px">
       <div class="hint" style="margin-bottom:8px">Введите номер, указанный в парке:</div>
-      <input id="parkPhone" type="tel" inputmode="tel" placeholder="+7 999 123-45-67" style="text-transform:none">
+      <input id="parkPhone" type="tel" inputmode="tel" placeholder="+7 999 123-45-67">
       <div class="msg" id="msgO"></div>
       <button class="btn" id="sendOther" style="margin-top:10px">Отправить на подтверждение</button>
     </div>
     <div class="msg" id="msg"></div>`;
   document.getElementById('same').onclick = ()=>doDriver(regPhone, tgName, 'msg');
   document.getElementById('other').onclick = ()=>{ document.getElementById('otherCard').style.display='block'; document.getElementById('parkPhone').focus(); };
-  const sendOther=document.getElementById('sendOther');
-  sendOther.onclick = ()=>{ const p=(document.getElementById('parkPhone').value||'').trim(); if(p.replace(/\D/g,'').length<10){ document.getElementById('msgO').textContent='Введите корректный номер'; return; } doDriver(p, tgName, 'msgO'); };
+  document.getElementById('sendOther').onclick = ()=>{ const p=(document.getElementById('parkPhone').value||'').trim(); if(p.replace(/\D/g,'').length<10){ document.getElementById('msgO').textContent='Введите корректный номер'; return; } doDriver(p, tgName, 'msgO'); };
 }
 
 async function doDriver(phone, tgName, msgId){
   const msg=document.getElementById(msgId); if(msg) msg.textContent='Проверка…';
   const j = await api('/api/tma/phone', {initData: ID, role:'driver', phone});
-  if(j.ok && j.linked){ renderCabinet(j.cabinet, tgName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
-  else if(j.ok && j.pending){ renderPending(j.driverName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
+  if(j.ok && j.linked){ enterCabinet(j.cabinet, tgName); haptic('medium'); }
+  else if(j.ok && j.pending){ renderPending(j.driverName); haptic('medium'); }
   else if(j.ok && j.notFound){ if(msg) msg.textContent='По этому номеру в парке не найдено. Проверьте номер.'; }
   else { if(msg) msg.textContent=j.error||'Ошибка'; }
 }
 
-function renderCabinet(cab, tgName){
-  if(!cab){ screenInfo('Кабинет пуст','Данные не найдены'); return; }
-  const p = cab.referrer||{}, t = cab.totals||{};
-  const refRows = (cab.referred||[]).length
-    ? cab.referred.map(r=>{
+function renderPending(driverName){
+  app.innerHTML = `${head()}<div class="center">
+    <div style="font-size:44px">⏳</div>
+    <h1>Заявка отправлена</h1>
+    <div class="hint" style="max-width:310px">Мы нашли${driverName?' <b>'+esc(driverName)+'</b>':' водителя'} в парке. Менеджер подтвердит привязку — после этого откроется кабинет. Загляните позже.</div>
+  </div>`;
+}
+
+/* ========================================================= КАБИНЕТ ========================================================= */
+function enterCabinet(cab, tgName){
+  CAB = cab||{}; if(tgName) TGNAME=tgName;
+  SECTION='cabinet'; INCV='income'; period='all';
+  go('cabinet');
+}
+
+function accruals(){ return (CAB && CAB.accruals) || []; }
+function pendingSum(){ return accruals().filter(a=>a.status!=='paid').reduce((s,a)=>s+Number(a.amount||0),0); }
+function earnedTotal(){ const t=(CAB&&CAB.totals)||{}; return Number(t.accrued||0); }
+
+/* нижняя навигация + оболочка */
+function shell(inner){
+  const nav = [['cabinet','🏠','Кабинет'],['income','💰','Доходы'],['withdraw','💸','Выводы'],['offer','📄','Оферта']]
+    .map(([k,ic,t])=>`<a class="${SECTION===k?'on':''}" data-go="${k}"><span class="ic">${ic}</span>${t}</a>`).join('');
+  app.innerHTML = `<div id="content">${inner}</div><div class="nav">${nav}</div>`;
+  app.querySelectorAll('.nav a[data-go]').forEach(a=>a.onclick=()=>{ haptic('light'); go(a.getAttribute('data-go')); });
+}
+
+function go(section){
+  SECTION=section;
+  if(section==='cabinet') secCabinet();
+  else if(section==='income'){ INCV='income'; secIncome(); }
+  else if(section==='withdraw') secWithdraw();
+  else if(section==='offer') secOffer();
+  window.scrollTo(0,0);
+}
+
+function secCabinet(){
+  const p=(CAB.referrer)||{}, t=(CAB.totals)||{};
+  const pend=pendingSum();
+  const refRows = (CAB.referred||[]).length
+    ? CAB.referred.map(r=>{
         const q=r.qualifyingOrders||0, active=!!r.activatedAt, pct=Math.min(100,Math.round(q/TH*100));
-        return `<div class="row"><div><div class="nm">${r.name||r.code||'—'}</div><div class="sub">тариф ${r.tariffCode||'—'}</div></div>
-          <div>${active?'<span class="badge on">активен</span>':`<span class="sub" style="display:inline-flex;align-items:center;gap:6px"><span class="track"><span class="fill" style="width:${pct}%"></span></span>${q}/${TH}</span>`}</div></div>`;
+        return `<div class="item"><div><div class="inm">${esc(r.name||r.code||'—')}</div><div class="isub">тариф ${esc(r.tariffCode||'—')}</div></div>
+          ${active?'<span class="chip on">активен</span>':`<div class="prog"><span class="track"><span class="fill" style="width:${pct}%"></span></span>${q}/${TH}</div>`}</div>`;
       }).join('')
     : '<div class="empty">Пока нет приведённых</div>';
-  const accRows = (cab.accruals||[]).length
-    ? cab.accruals.map(a=>`<div class="row"><div class="sub">${(a.periodFrom||'').slice(0,10)} — ${(a.periodTo||'').slice(0,10)}</div>
-        <div style="text-align:right"><div class="nm">${fmt(a.amount)} ₽</div><div><span class="badge ${a.status==='paid'?'on':'pend'}">${a.status==='paid'?'выплачено':'ожидает'}</span></div></div></div>`).join('')
-    : '<div class="empty">Начислений пока нет</div>';
-
-  app.innerHTML = `
-    <h1>${p.name||'Кабинет реферера'}</h1>
-    <div class="greet">${p.type==='agent'?'Агент':'Водитель-реферер'}${tgName?' · '+tgName:''}</div>
-
-    <div class="codeCard">
-      <div class="lbl">Ваш реферальный код</div>
-      <div class="code">${p.code||''}</div>
-      <button class="btn ghost" id="share">Пригласить водителя</button>
+  shell(`${head()}
+    <div class="income" id="incomeCard">
+      <div class="pill">за всё время ›</div>
+      <div class="il">💰 Ваш доход</div>
+      <div class="iv">${fmt(earnedTotal())} ₽</div>
+      <div class="ihint">${pend>0?'из них '+fmt(pend)+' ₽ ожидают выплаты':'все начисления выплачены'}</div>
+      <div class="tapme">подробнее ›</div>
     </div>
-
+    <div class="invrow">
+      <div class="codebox"><div class="cl">ваш код</div><div class="cv">${esc(p.code||'—')}</div></div>
+      <button class="invbtn" id="inv">📲 Пригласить</button>
+    </div>
     <div class="stats">
       <div class="stat"><div class="v">${t.referredActive||0} / ${t.referredTotal||0}</div><div class="k">активных / всего</div></div>
-      <div class="stat"><div class="v">${fmt(t.accrued)} ₽</div><div class="k">начислено всего</div></div>
+      <div class="stat"><div class="v">${fmt0(pend)} ₽</div><div class="k">ожидают выплаты</div></div>
     </div>
+    <div class="sec">🚕 Приведённые водители</div>
+    ${refRows}`);
+  document.getElementById('incomeCard').onclick=()=>{ haptic('light'); go('income'); };
+  document.getElementById('inv').onclick=invite;
+}
 
-    <div class="sec">Приведённые водители</div>
-    <div class="card" style="padding:2px 16px">${refRows}</div>
+function invite(){
+  const p=(CAB.referrer)||{};
+  haptic('light');
+  const link = `https://t.me/${BOT}?start=${encodeURIComponent(p.code||'')}`;
+  const text = `Приглашаю в таксопарк ПРАЙМ! Переходи по ссылке — и подключайся 🚕`;
+  if(tg && tg.openTelegramLink){ tg.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent(link)+'&text='+encodeURIComponent(text)); }
+  else if(navigator.clipboard){ navigator.clipboard.writeText(link); }
+}
 
-    <div class="sec">Начисления</div>
-    <div class="card" style="padding:2px 16px">${accRows}</div>`;
+/* ========================================================= ДОХОДЫ ========================================================= */
+function parseD(s){ const d=new Date(s); return isNaN(d)?null:d; }
+function dayStart(d){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+function periodRange(){
+  const now=new Date();
+  if(period==='week'){ const f=new Date(now); f.setDate(f.getDate()-7); return [dayStart(f), now, 'за неделю']; }
+  if(period==='month'){ const f=new Date(now); f.setDate(f.getDate()-30); return [dayStart(f), now, 'за месяц']; }
+  if(period==='custom' && cFrom && cTo){ const e=new Date(cTo); e.setHours(23,59,59,999); return [dayStart(cFrom), e, 'за период']; }
+  return [null, null, 'за всё время'];
+}
+function accrualsInRange(){
+  const [from,to]=periodRange();
+  return accruals().filter(a=>{
+    if(!from) return true;
+    const pf=parseD(a.periodFrom), pt=parseD(a.periodTo)||pf;
+    if(!pt) return false;
+    return (pf||pt) <= to && pt >= from; // пересечение с интервалом
+  });
+}
+function ddmm(s){ const d=parseD(s); if(!d) return '—'; return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0'); }
 
-  const share = document.getElementById('share');
-  if(share) share.onclick = () => {
-    const text = `Приглашаю в наш таксопарк! Назови мой реферальный код при подключении: ${p.code}`;
-    if(tg && tg.openTelegramLink){ tg.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent('https://referalka.vercel.app')+'&text='+encodeURIComponent(text)); }
-    else { navigator.clipboard && navigator.clipboard.writeText(p.code); }
-    if(tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+function secIncome(){
+  if(INCV==='calendar'){ return renderCalendar(); }
+  const [,,label]=periodRange();
+  const list=accrualsInRange();
+  const sum=list.reduce((s,a)=>s+Number(a.amount||0),0);
+  const pend=list.filter(a=>a.status!=='paid').reduce((s,a)=>s+Number(a.amount||0),0);
+  const seg=[['week','Неделя'],['month','Месяц'],['all','Всё время']]
+    .map(([k,t])=>`<div class="s ${period===k?'on':''}" data-p="${k}">${t}</div>`).join('');
+  const rows = list.length
+    ? list.map(a=>`<div class="item"><div><div class="inm">${fmt(a.amount)} ₽</div><div class="isub">${ddmm(a.periodFrom)} — ${ddmm(a.periodTo)}</div></div><span class="chip ${a.status==='paid'?'paid':'on'}">${a.status==='paid'?'выплачено':'ожидает'}</span></div>`).join('')
+    : '<div class="empty">За выбранный период начислений нет</div>';
+  const custom = (period==='custom' && cFrom && cTo) ? `${ddmm(cFrom.toISOString())} — ${ddmm(cTo.toISOString())} ✓` : 'выбрать даты ›';
+  shell(`<div class="back" id="back">‹ Назад в кабинет</div>
+    <div class="sec" style="margin-top:0">💰 Ваши доходы</div>
+    <div class="seg">${seg}</div>
+    <div class="daterow" id="pickDates"><span>📅 Свой период</span><span class="dr">${custom}</span></div>
+    <div class="bignum">
+      <div class="bl">Доход ${label}</div>
+      <div class="bv">${fmt(sum)} ₽</div>
+      <div class="bd">${pend>0?'из них '+fmt(pend)+' ₽ ожидают выплаты':(list.length?'всё выплачено':'—')}</div>
+    </div>
+    <div class="sec">🧾 Начисления</div>
+    ${rows}`);
+  document.getElementById('back').onclick=()=>go('cabinet');
+  app.querySelectorAll('.seg .s[data-p]').forEach(s=>s.onclick=()=>{ haptic('light'); period=s.getAttribute('data-p'); secIncome(); });
+  document.getElementById('pickDates').onclick=()=>{ openCalendar(); };
+}
+
+/* ---- календарь ---- */
+function openCalendar(){
+  const base = cFrom || new Date();
+  calY=base.getFullYear(); calM=base.getMonth();
+  selStart = cFrom ? dayStart(cFrom) : null;
+  selEnd   = cTo ? dayStart(cTo) : null;
+  INCV='calendar'; secIncome();
+}
+const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+function renderCalendar(){
+  const first=new Date(calY,calM,1);
+  let lead=(first.getDay()+6)%7; // Пн=0
+  const days=new Date(calY,calM+1,0).getDate();
+  const cells=[];
+  for(let i=0;i<lead;i++) cells.push('<span class="cd mut"></span>');
+  for(let d=1;d<=days;d++){
+    const cur=new Date(calY,calM,d).getTime();
+    const s=selStart?selStart.getTime():null, e=selEnd?selEnd.getTime():null;
+    let cls='cd';
+    if(s&&e){ if(cur===s&&cur===e) cls='cd one'; else if(cur===s) cls='cd rs'; else if(cur===e) cls='cd re'; else if(cur>s&&cur<e) cls='cd rng'; }
+    else if(s&&cur===s) cls='cd one';
+    cells.push(`<span class="${cls}" data-d="${d}">${d}</span>`);
+  }
+  const rv = selStart?`${String(selStart.getDate()).padStart(2,'0')}.${String(selStart.getMonth()+1).padStart(2,'0')}.${selStart.getFullYear()}`:'—';
+  const rv2= selEnd?`${String(selEnd.getDate()).padStart(2,'0')}.${String(selEnd.getMonth()+1).padStart(2,'0')}.${selEnd.getFullYear()}`:'—';
+  shell(`<div class="back" id="back">‹ Назад к доходам</div>
+    <div class="sec" style="margin-top:0">📅 Выберите период</div>
+    <div class="item" style="justify-content:space-around">
+      <div style="text-align:center"><div class="isub">с</div><div class="inm" style="color:#f2683c">${rv}</div></div>
+      <div style="color:#ffbf9a;font-weight:800">→</div>
+      <div style="text-align:center"><div class="isub">по</div><div class="inm" style="color:#f2683c">${rv2}</div></div>
+    </div>
+    <div class="cal">
+      <div class="calhead"><span class="cnav" id="pm">‹</span><span>${MONTHS[calM]} ${calY}</span><span class="cnav" id="nm">›</span></div>
+      <div class="cgrid cdow"><span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span></div>
+      <div class="cgrid" id="cg">${cells.join('')}</div>
+    </div>
+    <button class="btn" id="apply" ${(!selStart||!selEnd)?'disabled':''}>Показать доход за период</button>`);
+  document.getElementById('back').onclick=()=>{ INCV='income'; secIncome(); };
+  document.getElementById('pm').onclick=()=>{ if(--calM<0){calM=11;calY--;} renderCalendar(); };
+  document.getElementById('nm').onclick=()=>{ if(++calM>11){calM=0;calY++;} renderCalendar(); };
+  app.querySelectorAll('#cg .cd[data-d]').forEach(c=>c.onclick=()=>{
+    const d=new Date(calY,calM,+c.getAttribute('data-d'));
+    if(!selStart || (selStart&&selEnd)){ selStart=d; selEnd=null; }
+    else { if(d.getTime()<selStart.getTime()){ selEnd=selStart; selStart=d; } else selEnd=d; }
+    haptic('light'); renderCalendar();
+  });
+  document.getElementById('apply').onclick=()=>{ if(!selStart||!selEnd) return; cFrom=selStart; cTo=selEnd; period='custom'; INCV='income'; haptic('medium'); secIncome(); };
+}
+
+/* ========================================================= ВЫВОДЫ ========================================================= */
+function withdrawals(){ return (CAB && CAB.withdrawals) || []; }
+function available(){
+  if(CAB && CAB.available!=null) return Number(CAB.available);
+  const w=withdrawals().filter(x=>x.status!=='rejected').reduce((s,x)=>s+Number(x.amount||0),0);
+  return Math.max(0, Math.round((earnedTotal()-w)*100)/100);
+}
+function secWithdraw(){
+  const av=available();
+  const rows = withdrawals().length
+    ? withdrawals().map(w=>{
+        const st=w.status;
+        const chip = st==='paid'?'<span class="chip paid">выплачено</span>'
+          : st==='rejected'?'<span class="chip rej">отклонено</span>'
+          : '<span class="chip on">в обработке</span>';
+        return `<div class="item"><div><div class="inm">${fmt(w.amount)} ₽</div><div class="isub">${w.decidedAt?'решено '+ddmm(w.decidedAt):'запрошено '+ddmm(w.createdAt)}</div></div>${chip}</div>`;
+      }).join('')
+    : '<div class="empty">Выплат пока не было</div>';
+  shell(`${head('Ваши выплаты')}
+    <div class="balance">
+      <div class="bl">Доступно к выводу</div>
+      <div class="bv">${fmt(av)} ₽</div>
+      <button class="bbtn" id="req" ${av<=0?'disabled':''}>Запросить вывод</button>
+    </div>
+    <div class="sec">🧾 История выплат</div>
+    ${rows}`);
+  const req=document.getElementById('req');
+  if(req) req.onclick=async()=>{
+    req.disabled=true; req.textContent='Отправляем…';
+    const j=await api('/api/tma/withdraw',{initData:ID});
+    if(j.ok && j.cabinet){ CAB=j.cabinet; haptic('medium'); secWithdraw(); }
+    else if(j.ok){ CAB.withdrawals=j.withdrawals||withdrawals(); if(j.available!=null)CAB.available=j.available; haptic('medium'); secWithdraw(); }
+    else { req.disabled=false; req.textContent='Запросить вывод'; alert(j.error||'Не удалось отправить запрос'); }
   };
 }
 
+/* ========================================================= ОФЕРТА ========================================================= */
+function secOffer(){
+  const accepted = CAB && CAB.ofertaAcceptedAt;
+  shell(`${head('Условия программы')}
+    <div class="doc">
+      <h3>Реферальная программа «ПРАЙМ»</h3>
+      <p>Реферер получает вознаграждение с оборота приведённых водителей по выбранному тарифу.</p>
+      <p>Начисление активируется, когда приведённый водитель выполнит порог заказов (квалификация — ${TH} заказов).</p>
+      <p>Выплаты — по запросу на указанные реквизиты после подтверждения парком.</p>
+      <p style="opacity:.6;font-size:12px">Полный текст условий предоставляется парком по запросу.</p>
+      ${accepted
+        ? `<div class="accept">✅ Вы приняли условия ${ddmm(accepted)}.${String(new Date(accepted).getFullYear())}</div>`
+        : `<button class="btn" id="acc" style="margin-top:14px">Принять условия</button>`}
+    </div>`);
+  const acc=document.getElementById('acc');
+  if(acc) acc.onclick=async()=>{
+    acc.disabled=true; acc.textContent='Сохраняем…';
+    const j=await api('/api/tma/offer',{initData:ID, accept:true});
+    if(j.ok){ CAB.ofertaAcceptedAt = j.ofertaAcceptedAt || new Date().toISOString(); haptic('medium'); secOffer(); }
+    else { acc.disabled=false; acc.textContent='Принять условия'; alert(j.error||'Не удалось сохранить'); }
+  };
+}
+
+/* ========================================================= INIT ========================================================= */
 (async function init(){
   if(tg){ tg.ready(); tg.expand(); }
   if(!tg || !tg.initData){
-    screenInfo('Откройте в Telegram', 'Эта страница — мини-приложение. Откройте его через бота таксопарка в Telegram.');
+    screenInfo('Откройте в Telegram', 'Эта страница — мини-приложение. Откройте его через бота таксопарка в Telegram.', '📲');
     return;
   }
   ID = tg.initData;
   const j = await api('/api/tma/auth', {initData: ID});
   if(!j.ok){
-    screenInfo('Пока недоступно', j.error && j.error.indexOf('TELEGRAM_BOT_TOKEN')>=0
-      ? 'Приложение ещё настраивается администратором.'
-      : (j.error || 'Не удалось войти'));
+    screenInfo('Пока недоступно', j.error && j.error.indexOf('TELEGRAM_BOT_TOKEN')>=0 ? 'Приложение ещё настраивается администратором.' : (j.error||'Не удалось войти'), '🔧');
     return;
   }
-  if(j.linked) renderCabinet(j.cabinet, j.tgName);
+  if(j.linked) enterCabinet(j.cabinet, j.tgName);
   else startFlow(j.tgName, j.registeredPhone);
 })();
 </script>

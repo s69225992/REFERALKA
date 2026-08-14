@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyInitData, tgDisplayName } from "@/lib/telegram";
-import { referrerCabinet } from "@/lib/services/referrerData";
+import { referrerCabinetForAccount } from "@/lib/services/referrerData";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +15,8 @@ export async function POST(req: NextRequest) {
   const tgName = tgDisplayName(v.user);
   const account = await prisma.account.findUnique({ where: { telegramId: String(v.user.id) } });
 
-  if (account?.agentId) {
-    const cabinet = await referrerCabinet("agent", account.agentId);
-    return NextResponse.json({ ok: true, linked: true, tgName, cabinet });
-  }
-  if (account?.driverId) {
-    const cabinet = await referrerCabinet("driver", account.driverId);
+  if (account && (account.agentId || account.driverId)) {
+    const cabinet = await referrerCabinetForAccount(account);
     return NextResponse.json({ ok: true, linked: true, tgName, cabinet });
   }
   // не привязан — фронт ведёт по шагам (номер -> роль -> ...).

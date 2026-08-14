@@ -51,6 +51,44 @@ export async function referrerCabinet(type: "agent" | "driver", id: number) {
   };
 }
 
+// Кабинет + данные уровня аккаунта (выводы, доступный баланс, принятие оферты).
+// Используется мини-аппом, где важно показать балансы и историю выплат конкретной учётки.
+export async function referrerCabinetForAccount(account: {
+  id: number;
+  agentId: number | null;
+  driverId: number | null;
+  ofertaAcceptedAt: Date | null;
+}) {
+  const type: "agent" | "driver" = account.agentId ? "agent" : "driver";
+  const id = account.agentId || account.driverId;
+  if (!id) return null;
+  const cabinet = await referrerCabinet(type, id);
+  if (!cabinet) return null;
+
+  const withdrawals = await prisma.withdrawal.findMany({
+    where: { accountId: account.id },
+    orderBy: { createdAt: "desc" },
+  });
+  const earned = Number(cabinet.totals.accrued || 0);
+  const reserved = withdrawals
+    .filter((w: any) => w.status !== "rejected")
+    .reduce((s: number, w: any) => s + Number(w.amount), 0);
+  const available = Math.max(0, Math.round((earned - reserved) * 100) / 100);
+
+  return {
+    ...cabinet,
+    available,
+    ofertaAcceptedAt: account.ofertaAcceptedAt ? account.ofertaAcceptedAt.toISOString() : null,
+    withdrawals: withdrawals.map((w: any) => ({
+      id: w.id,
+      amount: w.amount.toString(),
+      status: w.status,
+      createdAt: w.createdAt,
+      decidedAt: w.decidedAt,
+    })),
+  };
+}
+
 // Найти реферера по коду: сначала среди агентов, затем среди водителей-рефереров.
 export async function findReferrerByCode(code: string) {
   const agent = await prisma.agent.findUnique({ where: { referralCode: code } });
