@@ -77,15 +77,16 @@ export async function buildTestReport(from: string, to: string, client = new Fle
     for (const tx of txs) {
       const category = (tx.category_id as string) ?? (tx.category_name as string) ?? "unknown";
       const amount = Number((tx.amount as string | number) ?? 0);
-      if (amount < 0) {
-        byCategory[category] = (byCategory[category] ?? 0) + -amount;
-        // комиссия парка: если категории заданы — только они; иначе не суммируем в commission
-        if (allowed.size > 0 && allowed.has(category)) commission += -amount;
-      }
+      // Комиссия парка = НЕТТО по нужным категориям (сумма со знаком, включая
+      // положительные корректировки/возвраты) — как в сводном отчёте Fleet.
+      // Раньше суммировались только модули отрицательных, из-за чего разовые
+      // возвраты внутри категории задваивали комиссию (расхождение в копейки/рубли).
+      if (allowed.size > 0 && allowed.has(category)) commission += amount;
+      if (amount < 0) byCategory[category] = (byCategory[category] ?? 0) + -amount; // справочно
     }
 
+    commission = Math.round(Math.abs(commission) * 100) / 100;
     const share = Math.round(commission * rate * 100) / 100;
-    commission = Math.round(commission * 100) / 100;
 
     rows.push({ driverId: id, name, workStatus, parkCommission: commission, referralShare: share, byCategory });
     totalCommission += commission;
