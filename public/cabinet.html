@@ -148,6 +148,7 @@ const refEarn = r => { const t=tById(r.tariff); return Math.round(turnoverOf(r.c
 
 // ===== Период =====
 let periodFactor = 1, periodLabel = "Сегодня";
+let curFrom = "", curTo = "";           // даты выбранного периода (МСК, YYYY-MM-DD) — для полей-календарей
 let LIVE = false;                     // режим живых данных
 let liveLoaded = false;               // пришли ли уже живые данные (до этого залогиненному показываем «…», а не демо)
 let ordersCount = null;               // кол-во заказов за период (подгружается отдельно; null = загрузка)
@@ -173,6 +174,9 @@ function mskMidnightUTC(daysAgo){
 function mskTodayStr(){
   return new Date(Date.now() + PARK_TZ_OFFSET_MS).toISOString().slice(0,10);
 }
+// Московская дата начала/конца из ISO. Конец периода — исключительная граница (-1 мс).
+function mskDateOf(iso){ return new Date(new Date(iso).getTime() + PARK_TZ_OFFSET_MS).toISOString().slice(0,10); }
+function mskDateOfEnd(iso){ return new Date(new Date(iso).getTime() - 1 + PARK_TZ_OFFSET_MS).toISOString().slice(0,10); }
 function weekAgoRange(days){
   const to = mskMidnightUTC(0);
   const from = mskMidnightUTC(days);
@@ -180,7 +184,7 @@ function weekAgoRange(days){
 }
 function setPeriod(f,label){
   periodLabel=label;
-  if(LIVE){ const [a,b]=weekAgoRange(Math.round(f*7)); periodFactor=1; loadLive(a,b,label); }
+  if(LIVE){ const [a,b]=weekAgoRange(Math.round(f*7)); curFrom=mskDateOf(a); curTo=mskDateOfEnd(b); periodFactor=1; loadLive(a,b,label); }
   else { periodFactor=f; render(); }
 }
 // Диапазон одного дня: offset 0 = сегодня, 1 = вчера (окно ровно московские сутки).
@@ -191,7 +195,7 @@ function dayRange(offset){
 }
 function setDay(offset,label){
   periodLabel=label;
-  if(LIVE){ const [a,b]=dayRange(offset); loadLive(a,b,label); }
+  if(LIVE){ const [a,b]=dayRange(offset); curFrom=mskDateOf(a); curTo=mskDateOfEnd(b); loadLive(a,b,label); }
   else { periodFactor=1/7; render(); }
 }
 function applyCustom(){
@@ -200,7 +204,7 @@ function applyCustom(){
   const days=Math.max(1,(new Date(b)-new Date(a))/86400000);
   const label=`${a.split('-').reverse().join('.')} – ${b.split('-').reverse().join('.')} (${Math.round(days)} дн.)`;
   periodLabel=label;
-  if(LIVE){ periodFactor=1; loadLive(a+'T00:00:00.000+03:00', b+'T23:59:59.999+03:00', label); }
+  if(LIVE){ curFrom=a; curTo=b; periodFactor=1; loadLive(a+'T00:00:00.000+03:00', b+'T23:59:59.999+03:00', label); }
   else { periodFactor=days/7; render(); }
 }
 
@@ -413,7 +417,7 @@ function periodBar(active){
     ${days.map(([o,l])=>`<button class="p ${on(l)}" onclick="setDay(${o},'${l}')">${l}</button>`).join('')}
     ${presets.map(([f,l])=>`<button class="p ${on(l)}" onclick="setPeriod(${f},'${l}')">${l}</button>`).join('')}
     <span class="muted" style="font-size:12px">или</span>
-    <input type="date" id="cFrom" value="${mskTodayStr()}"><span class="muted">–</span><input type="date" id="cTo" value="${mskTodayStr()}">
+    <input type="date" id="cFrom" value="${curFrom||mskTodayStr()}"><span class="muted">–</span><input type="date" id="cTo" value="${curTo||mskTodayStr()}">
     <button class="p" onclick="applyCustom()">Применить</button>
     <span class="lab">Период: ${periodLabel}</span>
   </div>`;
