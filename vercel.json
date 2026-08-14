@@ -8,5 +8,19 @@
       "path": "/api/cron/daily",
       "schedule": "0 1 * * *"
     }
+  ],
+  "headers": [
+    {
+      "source": "/tma.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" }
+      ]
+    },
+    {
+      "source": "/cabinet.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" }
+      ]
+    }
   ]
 }
