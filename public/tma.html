@@ -79,56 +79,116 @@ function renderPending(driverName){
   </div>`;
 }
 
-function renderOnboarding(tgName){
+let ID = ''; // initData, выставляется в init
+
+// Шаг 0: с чего начать (номер уже пришёл вебхуком или нет)
+function startFlow(tgName, registeredPhone){
+  if(registeredPhone) renderRole(registeredPhone, tgName);
+  else renderPhoneStep(tgName);
+}
+
+// Шаг 1: регистрация номера (поделиться из Telegram или ввести вручную)
+function renderPhoneStep(tgName){
+  const canShare = tg && typeof tg.requestContact === 'function';
   app.innerHTML = `
-    <div style="text-align:center;margin:22px 0 6px">
+    <div style="text-align:center;margin:26px 0 8px">
       <div style="font-size:34px">👋</div>
       <h1>Привет${tgName?', '+tgName:''}!</h1>
-      <div class="greet">Войдите в свой кабинет реферера. Укажите номер телефона, под которым вы зарегистрированы в парке.</div>
+      <div class="greet">Для входа в кабинет зарегистрируйте свой номер телефона.</div>
     </div>
     <div class="card">
-      <input id="phone" type="tel" inputmode="tel" placeholder="+7 999 123-45-67" autocomplete="tel" style="letter-spacing:1px;text-transform:none">
+      ${canShare?`<button class="btn" id="share">📱 Поделиться номером</button><div class="hint" style="text-align:center;margin:12px 0 8px">или введите вручную</div>`:''}
+      <input id="phone" type="tel" inputmode="tel" placeholder="+7 999 123-45-67" autocomplete="tel" style="text-transform:none">
       <div class="msg" id="msg"></div>
-      <button class="btn" id="goPhone" style="margin-top:12px">Войти по номеру</button>
-    </div>
-    <div style="text-align:center;margin-top:14px">
-      <a id="toCode" style="color:var(--link);font-size:14px">У меня есть реферальный код →</a>
-    </div>
-    <div class="card" id="codeCard" style="display:none;margin-top:12px">
-      <div class="hint" style="margin-bottom:8px">Введите код, выданный менеджером:</div>
-      <input id="code" placeholder="ВАШ КОД" maxlength="12" autocomplete="off">
-      <div class="msg" id="msg2"></div>
-      <button class="btn" id="goCode" style="margin-top:12px">Войти по коду</button>
+      <button class="btn ${canShare?'ghost':''}" id="goManual" style="margin-top:10px${canShare?';background:var(--card);color:var(--text)':''}">Далее</button>
     </div>`;
-
-  const id = tg ? tg.initData : '';
   const msg = document.getElementById('msg');
-  const goPhone = document.getElementById('goPhone');
-  const phoneInp = document.getElementById('phone');
-  phoneInp.focus();
+  if(canShare){
+    const shareBtn = document.getElementById('share');
+    shareBtn.onclick = ()=>{
+      shareBtn.disabled=true; shareBtn.textContent='Ожидание номера…';
+      try{ tg.requestContact((ok)=>{
+        if(ok){ pollRegistered(tgName, 0); }
+        else { shareBtn.disabled=false; shareBtn.textContent='📱 Поделиться номером'; }
+      }); }catch(e){ shareBtn.disabled=false; shareBtn.textContent='📱 Поделиться номером'; }
+    };
+  }
+  const goManual = document.getElementById('goManual'), inp = document.getElementById('phone');
+  if(!canShare) inp.focus();
+  goManual.onclick = ()=>{ const p=(inp.value||'').trim(); if(p.replace(/\D/g,'').length<10){ msg.textContent='Введите корректный номер'; return; } renderRole(p, tgName); };
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') goManual.click(); });
+}
 
-  goPhone.onclick = async () => {
-    const phone = (phoneInp.value||'').trim();
-    if(phone.replace(/\D/g,'').length < 10){ msg.textContent='Введите корректный номер'; return; }
-    goPhone.disabled=true; goPhone.textContent='Проверка…'; msg.textContent='';
-    const j = await api('/api/tma/phone', {initData:id, phone});
-    if(j.ok && j.linked){ renderCabinet(j.cabinet, tgName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
-    else if(j.ok && j.pending){ renderPending(j.driverName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
-    else if(j.ok && j.notFound){ msg.textContent='По этому номеру в парке не найдено. Проверьте номер или войдите по коду.'; goPhone.disabled=false; goPhone.textContent='Войти по номеру'; }
-    else { msg.textContent=j.error||'Не удалось войти'; goPhone.disabled=false; goPhone.textContent='Войти по номеру'; }
-  };
-  phoneInp.addEventListener('keydown', e=>{ if(e.key==='Enter') goPhone.click(); });
+// После «Поделиться номером» номер приходит вебхуком — опрашиваем сервер
+async function pollRegistered(tgName, tries){
+  const j = await api('/api/tma/auth', {initData: ID});
+  if(j.ok && j.linked){ renderCabinet(j.cabinet, j.tgName); return; }
+  if(j.ok && j.registeredPhone){ if(tg&&tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); renderRole(j.registeredPhone, tgName); return; }
+  if(tries < 8){ setTimeout(()=>pollRegistered(tgName, tries+1), 1200); return; }
+  const b=document.getElementById('share'); if(b){ b.disabled=false; b.textContent='📱 Поделиться номером'; }
+  const m=document.getElementById('msg'); if(m) m.textContent='Не получили номер автоматически — введите вручную ниже.';
+}
 
-  document.getElementById('toCode').onclick = ()=>{ document.getElementById('codeCard').style.display='block'; document.getElementById('code').focus(); };
-  const goCode = document.getElementById('goCode');
-  goCode.onclick = async () => {
-    const code=(document.getElementById('code').value||'').trim(); const msg2=document.getElementById('msg2');
-    if(!code){ msg2.textContent='Введите код'; return; }
-    goCode.disabled=true; goCode.textContent='Проверка…'; msg2.textContent='';
-    const j = await api('/api/tma/link', {initData:id, code});
-    if(j.ok && j.linked){ renderCabinet(j.cabinet, tgName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
-    else { msg2.textContent=j.error||'Код не найден'; goCode.disabled=false; goCode.textContent='Войти по коду'; }
-  };
+// Шаг 2: кто вы — агент или водитель
+function renderRole(regPhone, tgName){
+  app.innerHTML = `
+    <div style="text-align:center;margin:26px 0 16px">
+      <div class="hint">Ваш номер: <b>${regPhone}</b></div>
+      <h1 style="margin-top:8px">Вы агент или водитель?</h1>
+      <div class="greet">Выберите, кто вы — откроется нужный кабинет.</div>
+    </div>
+    <div style="display:flex;gap:12px">
+      <button class="btn" id="rAgent" style="flex:1;padding:20px 8px;line-height:1.3">🤝<br>Агент</button>
+      <button class="btn" id="rDriver" style="flex:1;padding:20px 8px;line-height:1.3;background:var(--card);color:var(--text)">🚗<br>Водитель-реферал</button>
+    </div>
+    <div class="msg" id="msg"></div>`;
+  document.getElementById('rAgent').onclick = ()=>doAgent(regPhone, tgName);
+  document.getElementById('rDriver').onclick = ()=>renderDriverChoice(regPhone, tgName);
+}
+
+async function doAgent(regPhone, tgName){
+  const msg=document.getElementById('msg'); if(msg) msg.textContent='Проверка…';
+  const j = await api('/api/tma/phone', {initData: ID, role:'agent', phone: regPhone});
+  if(j.ok && j.linked){ renderCabinet(j.cabinet, tgName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
+  else if(j.ok && j.notFound){
+    app.innerHTML = `<div class="center"><div style="font-size:36px">🔎</div><h1>Агент не найден</h1><div class="hint" style="max-width:300px">По номеру <b>${regPhone}</b> агент в системе не найден. Обратитесь к менеджеру парка — он заведёт вас с этим номером.</div><button class="btn" id="back" style="margin-top:16px;max-width:240px">Назад</button></div>`;
+    document.getElementById('back').onclick=()=>renderRole(regPhone, tgName);
+  }
+  else { if(msg) msg.textContent=j.error||'Ошибка'; }
+}
+
+// Шаг 3 (водитель): в парке этот же номер или другой
+function renderDriverChoice(regPhone, tgName){
+  app.innerHTML = `
+    <div style="text-align:center;margin:26px 0 16px">
+      <div class="hint">Ваш номер: <b>${regPhone}</b></div>
+      <h1 style="margin-top:8px">Номер в парке</h1>
+      <div class="greet">В парке вы зарегистрированы под этим же номером или под другим?</div>
+    </div>
+    <div style="display:flex;gap:12px">
+      <button class="btn" id="same" style="flex:1;padding:16px 8px">Этот же</button>
+      <button class="btn" id="other" style="flex:1;padding:16px 8px;background:var(--card);color:var(--text)">Другой</button>
+    </div>
+    <div class="card" id="otherCard" style="display:none;margin-top:14px">
+      <div class="hint" style="margin-bottom:8px">Введите номер, указанный в парке:</div>
+      <input id="parkPhone" type="tel" inputmode="tel" placeholder="+7 999 123-45-67" style="text-transform:none">
+      <div class="msg" id="msgO"></div>
+      <button class="btn" id="sendOther" style="margin-top:10px">Отправить на подтверждение</button>
+    </div>
+    <div class="msg" id="msg"></div>`;
+  document.getElementById('same').onclick = ()=>doDriver(regPhone, tgName, 'msg');
+  document.getElementById('other').onclick = ()=>{ document.getElementById('otherCard').style.display='block'; document.getElementById('parkPhone').focus(); };
+  const sendOther=document.getElementById('sendOther');
+  sendOther.onclick = ()=>{ const p=(document.getElementById('parkPhone').value||'').trim(); if(p.replace(/\D/g,'').length<10){ document.getElementById('msgO').textContent='Введите корректный номер'; return; } doDriver(p, tgName, 'msgO'); };
+}
+
+async function doDriver(phone, tgName, msgId){
+  const msg=document.getElementById(msgId); if(msg) msg.textContent='Проверка…';
+  const j = await api('/api/tma/phone', {initData: ID, role:'driver', phone});
+  if(j.ok && j.linked){ renderCabinet(j.cabinet, tgName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
+  else if(j.ok && j.pending){ renderPending(j.driverName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
+  else if(j.ok && j.notFound){ if(msg) msg.textContent='По этому номеру в парке не найдено. Проверьте номер.'; }
+  else { if(msg) msg.textContent=j.error||'Ошибка'; }
 }
 
 function renderCabinet(cab, tgName){
@@ -182,7 +242,8 @@ function renderCabinet(cab, tgName){
     screenInfo('Откройте в Telegram', 'Эта страница — мини-приложение. Откройте его через бота таксопарка в Telegram.');
     return;
   }
-  const j = await api('/api/tma/auth', {initData: tg.initData});
+  ID = tg.initData;
+  const j = await api('/api/tma/auth', {initData: ID});
   if(!j.ok){
     screenInfo('Пока недоступно', j.error && j.error.indexOf('TELEGRAM_BOT_TOKEN')>=0
       ? 'Приложение ещё настраивается администратором.'
@@ -190,7 +251,7 @@ function renderCabinet(cab, tgName){
     return;
   }
   if(j.linked) renderCabinet(j.cabinet, j.tgName);
-  else renderOnboarding(j.tgName);
+  else startFlow(j.tgName, j.registeredPhone);
 })();
 </script>
 </body>
