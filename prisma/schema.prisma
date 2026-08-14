@@ -58,6 +58,7 @@ model Account {
   id           Int      @id @default(autoincrement())
   telegramId   String?  @unique @map("telegram_id")
   phone        String?  @unique
+  pendingPhone String?  @map("pending_phone") // номер, полученный из Telegram до выбора роли/привязки
   email        String?  @unique
   passwordHash String?  @map("password_hash")
   role         String   @default("agent") // admin | manager | agent | driver
