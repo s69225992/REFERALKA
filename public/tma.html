@@ -71,29 +71,64 @@ async function api(path, body){
   return r.json().catch(()=>({ok:false, error:'Ошибка сети'}));
 }
 
+function renderPending(driverName){
+  app.innerHTML = `<div class="center">
+    <div style="font-size:40px">⏳</div>
+    <h1>Заявка отправлена</h1>
+    <div class="hint" style="max-width:300px">Мы нашли${driverName?' <b>'+driverName+'</b>':' водителя'} в парке. Менеджер подтвердит привязку — после этого откроется ваш кабинет. Загляните позже.</div>
+  </div>`;
+}
+
 function renderOnboarding(tgName){
   app.innerHTML = `
-    <div style="text-align:center;margin:24px 0 6px">
+    <div style="text-align:center;margin:22px 0 6px">
       <div style="font-size:34px">👋</div>
       <h1>Привет${tgName?', '+tgName:''}!</h1>
-      <div class="greet">Введите ваш реферальный код, чтобы открыть кабинет. Код выдаёт менеджер парка.</div>
+      <div class="greet">Войдите в свой кабинет реферера. Укажите номер телефона, под которым вы зарегистрированы в парке.</div>
     </div>
     <div class="card">
-      <input id="code" placeholder="ВАШ КОД" maxlength="12" autocomplete="off">
+      <input id="phone" type="tel" inputmode="tel" placeholder="+7 999 123-45-67" autocomplete="tel" style="letter-spacing:1px;text-transform:none">
       <div class="msg" id="msg"></div>
-      <button class="btn" id="go" style="margin-top:12px">Войти</button>
+      <button class="btn" id="goPhone" style="margin-top:12px">Войти по номеру</button>
+    </div>
+    <div style="text-align:center;margin-top:14px">
+      <a id="toCode" style="color:var(--link);font-size:14px">У меня есть реферальный код →</a>
+    </div>
+    <div class="card" id="codeCard" style="display:none;margin-top:12px">
+      <div class="hint" style="margin-bottom:8px">Введите код, выданный менеджером:</div>
+      <input id="code" placeholder="ВАШ КОД" maxlength="12" autocomplete="off">
+      <div class="msg" id="msg2"></div>
+      <button class="btn" id="goCode" style="margin-top:12px">Войти по коду</button>
     </div>`;
-  const go = document.getElementById('go'), msg = document.getElementById('msg'), inp = document.getElementById('code');
-  inp.focus();
-  go.onclick = async () => {
-    const code = (inp.value||'').trim();
-    if(!code){ msg.textContent='Введите код'; return; }
-    go.disabled=true; go.textContent='Проверка…'; msg.textContent='';
-    const j = await api('/api/tma/link', {initData: tg ? tg.initData : '', code});
-    if(j.ok && j.linked){ renderCabinet(j.cabinet, tgName); if(tg) tg.HapticFeedback && tg.HapticFeedback.notificationOccurred('success'); }
-    else { msg.textContent = j.error || 'Не удалось привязать'; go.disabled=false; go.textContent='Войти'; }
+
+  const id = tg ? tg.initData : '';
+  const msg = document.getElementById('msg');
+  const goPhone = document.getElementById('goPhone');
+  const phoneInp = document.getElementById('phone');
+  phoneInp.focus();
+
+  goPhone.onclick = async () => {
+    const phone = (phoneInp.value||'').trim();
+    if(phone.replace(/\D/g,'').length < 10){ msg.textContent='Введите корректный номер'; return; }
+    goPhone.disabled=true; goPhone.textContent='Проверка…'; msg.textContent='';
+    const j = await api('/api/tma/phone', {initData:id, phone});
+    if(j.ok && j.linked){ renderCabinet(j.cabinet, tgName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
+    else if(j.ok && j.pending){ renderPending(j.driverName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
+    else if(j.ok && j.notFound){ msg.textContent='По этому номеру в парке не найдено. Проверьте номер или войдите по коду.'; goPhone.disabled=false; goPhone.textContent='Войти по номеру'; }
+    else { msg.textContent=j.error||'Не удалось войти'; goPhone.disabled=false; goPhone.textContent='Войти по номеру'; }
   };
-  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') go.click(); });
+  phoneInp.addEventListener('keydown', e=>{ if(e.key==='Enter') goPhone.click(); });
+
+  document.getElementById('toCode').onclick = ()=>{ document.getElementById('codeCard').style.display='block'; document.getElementById('code').focus(); };
+  const goCode = document.getElementById('goCode');
+  goCode.onclick = async () => {
+    const code=(document.getElementById('code').value||'').trim(); const msg2=document.getElementById('msg2');
+    if(!code){ msg2.textContent='Введите код'; return; }
+    goCode.disabled=true; goCode.textContent='Проверка…'; msg2.textContent='';
+    const j = await api('/api/tma/link', {initData:id, code});
+    if(j.ok && j.linked){ renderCabinet(j.cabinet, tgName); if(tg&&tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); }
+    else { msg2.textContent=j.error||'Код не найден'; goCode.disabled=false; goCode.textContent='Войти по коду'; }
+  };
 }
 
 function renderCabinet(cab, tgName){

@@ -155,6 +155,7 @@ let ordersCount = null;               // кол-во заказов за пер�
 let ordersByDriver = null;            // {driverId: кол-во заказов} за период (null = загрузка)
 let dbDriversByYid = null;            // yandexId -> запись водителя из нашей БД (реферер и т.п.); null = не загружено
 let agentsList = null;                // список агентов из БД
+let linkReqs = null;                  // заявки водителей на привязку (Telegram)
 let impData = null;                   // данные кабинета реферера в режиме «просмотра как»
 const DB_TARIFFS = [['3_1','3 / 1'],['4_1.5','4 / 1,5'],['5_2','5 / 2']]; // коды тарифов как в БД
 const S = n => n*periodFactor;        // масштаб по периоду (только в демо-режиме)
@@ -234,6 +235,7 @@ async function loadLive(from,to,label){
     loadOrders(from,to);              // независимо: не блокирует и не ломает дашборд
     loadDbDrivers();                  // подтянуть водителей из нашей БД (реферер, реф-код)
     loadAgents();                     // подтянуть агентов
+    loadLinkReqs();                   // подтянуть заявки на привязку (Telegram)
   }catch(e){ setBadge('error', String(e)); }
 }
 
@@ -257,6 +259,24 @@ async function loadAgents(){
     agentsList = j.agents || [];
   }catch(e){ agentsList = []; }
   if(LIVE && page==='agents') render();
+}
+
+// ===== Заявки на привязку (Telegram) =====
+async function loadLinkReqs(){
+  const token = sessionStorage.getItem('ref_token'); if(!token) return;
+  try{
+    const j = await fetch('/api/admin/link-requests',{headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    linkReqs = j.requests || [];
+  }catch(e){ linkReqs = []; }
+  if(LIVE) render();
+}
+async function decideReq(id, action, btn){
+  const token = sessionStorage.getItem('ref_token');
+  const row = btn.closest('tr'); if(row) row.style.opacity='.5';
+  try{
+    const j = await fetch('/api/admin/link-requests',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({id,action})}).then(r=>r.json());
+    if(j.ok){ await loadLinkReqs(); render(); } else { if(row) row.style.opacity='1'; }
+  }catch(e){ if(row) row.style.opacity='1'; }
 }
 
 // Привязать реферера к водителю (кнопка в таблице). btn — сама кнопка, dbId — id водителя в нашей БД.
@@ -430,7 +450,7 @@ const myRefs = ()=>referrals.filter(r=>r.referrer==="Карен Овсепян")
 // ===== Меню =====
 const MENUS = {
   manager:[
-    ["overview","📊","Обзор"],["drivers","🧑","Водители"],["agents","🤝","Агенты"],["referrals","🔗","Рефералы"],
+    ["overview","📊","Обзор"],["drivers","🧑","Водители"],["agents","🤝","Агенты"],["requests","✅","Заявки"],["referrals","🔗","Рефералы"],
     ["accruals","💰","Начисления"],["payouts","🏦","Выплаты"],["tariffs","🏷️","Тарифы"],
     ["oferta","📄","Оферта"],["settings","⚙️","Настройки"]
   ],
@@ -441,7 +461,7 @@ const MENUS = {
 };
 let role="manager", page="overview";
 function setRole(r){ role=r; page=MENUS[r][0][0]; try{sessionStorage.setItem('ref_role',r);sessionStorage.setItem('ref_page',page);}catch(e){} render(); }
-function go(p){ page=p; try{sessionStorage.setItem('ref_page',p);}catch(e){} render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); } }
+function go(p){ page=p; try{sessionStorage.setItem('ref_page',p);}catch(e){} render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); if(p==='requests' && linkReqs===null) loadLinkReqs(); } }
 function setInviteTariff(id){ me.inviteTariff=id; render(); }
 
 function render(){
@@ -562,6 +582,17 @@ const PAGES = {
     <table><thead><tr><th class="num">#</th><th>Водитель</th><th>Тариф</th><th>Квалификация</th></tr></thead><tbody>${refRows}</tbody></table>
     <div class="sec">Начисления</div>
     <table><thead><tr><th>Период</th><th class="num">Сумма</th><th>Статус</th></tr></thead><tbody>${accRows}</tbody></table>`;
+  },
+  requests:()=>{
+    const rows = linkReqs||[];
+    const list = linkReqs===null
+      ? '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
+      : (rows.length ? rows.map((r,i)=>`<tr><td class="num muted">${i+1}</td><td>${r.driverName||'—'}<div class="muted" style="font-size:12px">в парке: ${r.driverPhone||'—'}</div></td><td>${r.parkPhone||'—'}</td><td class="muted" style="font-size:12px">tg ${r.telegramId||'—'}</td><td class="num" style="white-space:nowrap"><button class="btn" style="padding:5px 10px;font-size:12px" onclick="decideReq(${r.id},'approve',this)">Подтвердить</button> <button class="btn sec" style="padding:5px 10px;font-size:12px" onclick="decideReq(${r.id},'reject',this)">Отклонить</button></td></tr>`).join('')
+        : '<tr><td colspan="5" class="muted" style="padding:12px;text-align:center">Заявок пока нет</td></tr>');
+    return `
+    <div class="muted" style="margin-bottom:12px">Заявки водителей на привязку Telegram-аккаунта к профилю в парке (по номеру). Подтверждайте только если это действительно тот водитель — после подтверждения он видит свой кабинет и начисления.</div>
+    <table><thead><tr><th class="num">#</th><th>Водитель в парке</th><th>Указанный номер</th><th>Telegram</th><th class="num"></th></tr></thead>
+    <tbody>${list}</tbody></table>`;
   },
   referrals:()=>periodBar()+`
     <div class="muted" style="margin-bottom:12px">Связи «кто кого привёл» и тариф, на который привели. Реферер получает свой % с оборота приведённого.</div>
