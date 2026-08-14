@@ -125,12 +125,10 @@ const fmt = n => (Math.round(Number(n||0)*100)/100).toLocaleString('ru-RU',{mini
 const fmt0 = n => Math.round(Number(n||0)).toLocaleString('ru-RU');
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const haptic = t => { try{ tg&&tg.HapticFeedback&&tg.HapticFeedback.impactOccurred(t||'light'); }catch(e){} };
-
-// ВРЕМЕННАЯ ДИАГНОСТИКА (уберём после): показываем шаги и ошибки прямо на экране
-function stage(t){ try{ app.innerHTML = '<div class="center"><div class="spinner"></div><div style="max-width:320px;word-break:break-word;white-space:pre-wrap">'+t+'</div></div>'; }catch(_){} }
-function showErr(m){ try{ app.innerHTML = '<div class="center"><div style="font-size:32px">⚠️</div><div>Сбой</div><div class="hint" style="max-width:330px;word-break:break-word;white-space:pre-wrap">'+String(m)+'</div></div>'; }catch(_){} }
-window.addEventListener('error', function(ev){ showErr('JS: '+((ev&&ev.message)||'?')+' @'+((ev&&ev.filename)||'')+':'+((ev&&ev.lineno)||'')); });
-window.addEventListener('unhandledrejection', function(ev){ showErr('PROMISE: '+((ev&&ev.reason&&(ev.reason.message||ev.reason))||'?')); });
+// Глобальный перехват ошибок — показываем на экране, а не молчаливый спиннер
+function showErr(m){ try{ app.innerHTML = '<div class="center"><div style="font-size:32px">⚠️</div><div>Что-то пошло не так</div><div class="hint" style="max-width:330px;word-break:break-word;white-space:pre-wrap">'+String(m)+'</div></div>'; }catch(_){} }
+window.addEventListener('error', function(ev){ showErr((ev&&ev.message)||'ошибка'); });
+window.addEventListener('unhandledrejection', function(ev){ showErr((ev&&ev.reason&&(ev.reason.message||ev.reason))||'ошибка'); });
 
 async function api(path, body){
   const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
@@ -499,27 +497,20 @@ function secOffer(){
 /* ========================================================= INIT ========================================================= */
 (async function init(){
   try{
-    stage('шаг 1: старт');
-    if(tg){ try{ tg.ready(); tg.expand(); }catch(e){ showErr('tg.ready/expand: '+e.message); return; } }
-    stage('шаг 2: tg='+(tg?'да':'нет')+', initData='+((tg&&tg.initData)?tg.initData.length+' симв.':'нет'));
+    if(tg){ tg.ready(); tg.expand(); }
     if(!tg || !tg.initData){
       screenInfo('Откройте в Telegram', 'Эта страница — мини-приложение. Откройте его через бота таксопарка в Telegram.', '📲');
       return;
     }
     ID = tg.initData;
-    stage('шаг 3: запрос авторизации…');
-    let j;
-    try{ j = await api('/api/tma/auth', {initData: ID}); }
-    catch(e){ showErr('fetch auth: '+e.message); return; }
-    stage('шаг 4: ответ ok='+(j&&j.ok)+' linked='+(j&&j.linked)+' cabinet='+(j&&j.cabinet?'есть':'нет'));
+    const j = await api('/api/tma/auth', {initData: ID});
     if(!j.ok){
       screenInfo('Пока недоступно', j.error && j.error.indexOf('TELEGRAM_BOT_TOKEN')>=0 ? 'Приложение ещё настраивается администратором.' : (j.error||'Не удалось войти'), '🔧');
       return;
     }
-    stage('шаг 5: отрисовка кабинета…');
     if(j.linked) enterCabinet(j.cabinet, j.tgName);
     else startFlow(j.tgName, j.registeredPhone);
-  }catch(e){ showErr('init: '+(e&&e.message||e)+'\n'+(e&&e.stack||'')); }
+  }catch(e){ showErr((e&&e.message)||'ошибка запуска'); }
 })();
 </script>
 </body>
