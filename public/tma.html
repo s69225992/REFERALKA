@@ -220,11 +220,39 @@ async function doAgent(regPhone, tgName){
   const msg=document.getElementById('msg'); if(msg) msg.textContent='Проверка…';
   const j = await api('/api/tma/phone', {initData: ID, role:'agent', phone: regPhone});
   if(j.ok && j.linked){ enterCabinet(j.cabinet, tgName); haptic('medium'); }
-  else if(j.ok && j.notFound){
-    app.innerHTML = `${brandHead()}<div class="center"><div style="font-size:38px">🔎</div><h1>Агент не найден</h1><div class="hint" style="max-width:300px">По номеру <b>${esc(regPhone)}</b> агент не найден. Обратитесь к менеджеру парка — он заведёт вас с этим номером.</div><button class="btn alt" id="back" style="margin-top:16px;max-width:240px">Назад</button></div>`;
-    document.getElementById('back').onclick=()=>renderRole(regPhone, tgName);
-  }
+  else if(j.ok && j.needRegister){ renderAgentRegister(regPhone, tgName); }
   else { if(msg) msg.textContent=j.error||'Ошибка'; }
+}
+
+// Анкета саморегистрации агента: ФИО + дата рождения
+function renderAgentRegister(regPhone, tgName){
+  app.innerHTML = `${brandHead()}
+    <div style="text-align:center;margin:14px 0 12px">
+      <div style="font-size:34px">📝</div>
+      <h1>Регистрация агента</h1>
+      <div class="hint" style="margin-top:4px">Заполните данные — и откроется кабинет.</div>
+    </div>
+    <div class="card">
+      <div class="hint" style="margin-bottom:6px">ФИО</div>
+      <input id="fio" type="text" placeholder="Иванов Иван Иванович" style="text-align:left;text-transform:none">
+      <div class="hint" style="margin:14px 0 6px">Дата рождения</div>
+      <input id="dob" type="date" style="text-align:left">
+      <div class="msg" id="msg"></div>
+      <button class="btn" id="reg" style="margin-top:14px">Зарегистрироваться</button>
+      <div class="hint" style="text-align:center;margin-top:10px">Номер: <b>${esc(regPhone)}</b></div>
+    </div>`;
+  const reg=document.getElementById('reg');
+  reg.onclick = async ()=>{
+    const fio=(document.getElementById('fio').value||'').trim();
+    const dob=(document.getElementById('dob').value||'').trim();
+    const msg=document.getElementById('msg');
+    if(fio.length<3){ msg.textContent='Введите ФИО'; return; }
+    if(!dob){ msg.textContent='Укажите дату рождения'; return; }
+    reg.disabled=true; msg.textContent='Регистрируем…';
+    const j = await api('/api/tma/phone', {initData: ID, role:'agent', phone: regPhone, fullName: fio, birthDate: dob});
+    if(j.ok && j.linked){ enterCabinet(j.cabinet, tgName); haptic('medium'); }
+    else { reg.disabled=false; msg.textContent=j.error||'Ошибка регистрации'; }
+  };
 }
 
 function renderDriverChoice(regPhone, tgName){

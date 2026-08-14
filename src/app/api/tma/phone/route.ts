@@ -3,7 +3,7 @@
 // role='driver' — ищем водителя по номеру, создаём заявку менеджеру на подтверждение.
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyInitData, tgDisplayName } from "@/lib/telegram";
+import { verifyInitData } from "@/lib/telegram";
 import { normalizePhone } from "@/lib/phone";
 import { referrerCabinetForAccount } from "@/lib/services/referrerData";
 
@@ -29,10 +29,12 @@ async function uniqueCode(): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const { initData, phone, role } = (await req.json().catch(() => ({}))) as {
+  const { initData, phone, role, fullName, birthDate } = (await req.json().catch(() => ({}))) as {
     initData?: string;
     phone?: string;
     role?: string;
+    fullName?: string;
+    birthDate?: string;
   };
   const v = verifyInitData(initData || "");
   if (!v.ok || !v.user) return NextResponse.json({ ok: false, error: v.error || "auth" }, { status: 401 });
@@ -51,10 +53,17 @@ export async function POST(req: NextRequest) {
     if (found) {
       agentId = found.id;
     } else {
+      // саморегистрация: если анкета ещё не заполнена — просим ФИО и дату рождения
+      if (!fullName || fullName.trim().length < 3) {
+        return NextResponse.json({ ok: true, needRegister: true, role: "agent" });
+      }
+      let dob: Date | null = null;
+      if (birthDate && /^\d{4}-\d{2}-\d{2}$/.test(birthDate)) dob = new Date(birthDate + "T00:00:00Z");
       const created = await prisma.agent.create({
         data: {
-          fullName: tgDisplayName(v.user) || null,
+          fullName: fullName.trim(),
           phone: (phone || "").trim(),
+          birthDate: dob,
           referralCode: await uniqueCode(),
           status: "active",
         },

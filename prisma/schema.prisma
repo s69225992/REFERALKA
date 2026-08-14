@@ -44,6 +44,7 @@ model Agent {
   email        String?  @unique
   referralCode String   @unique @map("referral_code")
   photoUrl     String?  @map("photo_url")
+  birthDate    DateTime? @map("birth_date") // дата рождения (саморегистрация агента)
   status       String   @default("active") // active | blocked
   createdAt    DateTime @default(now()) @map("created_at")
 
