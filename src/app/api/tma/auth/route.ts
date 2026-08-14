@@ -13,7 +13,11 @@ export async function POST(req: NextRequest) {
   if (!v.ok || !v.user) return NextResponse.json({ ok: false, error: v.error || "auth" }, { status: 401 });
 
   const tgName = tgDisplayName(v.user);
-  const account = await prisma.account.findUnique({ where: { telegramId: String(v.user.id) } });
+  // Явно выбираем только «старые» колонки — вход не зависит от новых полей БД (oferta_accepted_at).
+  const account = await prisma.account.findUnique({
+    where: { telegramId: String(v.user.id) },
+    select: { id: true, agentId: true, driverId: true, pendingPhone: true },
+  });
 
   if (account && (account.agentId || account.driverId)) {
     const cabinet = await referrerCabinetForAccount(account);

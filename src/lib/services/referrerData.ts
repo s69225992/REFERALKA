@@ -57,7 +57,7 @@ export async function referrerCabinetForAccount(account: {
   id: number;
   agentId: number | null;
   driverId: number | null;
-  ofertaAcceptedAt: Date | null;
+  ofertaAcceptedAt?: Date | null;
 }) {
   const type: "agent" | "driver" = account.agentId ? "agent" : "driver";
   const id = account.agentId || account.driverId;
@@ -65,10 +65,28 @@ export async function referrerCabinetForAccount(account: {
   const cabinet = await referrerCabinet(type, id);
   if (!cabinet) return null;
 
-  const withdrawals = await prisma.withdrawal.findMany({
-    where: { accountId: account.id },
-    orderBy: { createdAt: "desc" },
-  });
+  // Выплаты — «неломающие»: если таблицы ещё нет или запрос завис, кабинет всё равно грузится.
+  let withdrawals: any[] = [];
+  try {
+    withdrawals = (await Promise.race([
+      prisma.withdrawal.findMany({ where: { accountId: account.id }, orderBy: { createdAt: "desc" } }),
+      new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 5000)),
+    ])) as any[];
+  } catch {
+    withdrawals = [];
+  }
+
+  // Оферта — тоже «неломающе»: если колонки ещё нет в БД, отдаём null.
+  let ofertaAcceptedAt: string | null = account.ofertaAcceptedAt ? account.ofertaAcceptedAt.toISOString() : null;
+  if (account.ofertaAcceptedAt === undefined) {
+    try {
+      const a = await prisma.account.findUnique({ where: { id: account.id }, select: { ofertaAcceptedAt: true } });
+      ofertaAcceptedAt = a?.ofertaAcceptedAt ? a.ofertaAcceptedAt.toISOString() : null;
+    } catch {
+      ofertaAcceptedAt = null;
+    }
+  }
+
   const earned = Number(cabinet.totals.accrued || 0);
   const reserved = withdrawals
     .filter((w: any) => w.status !== "rejected")
@@ -78,7 +96,7 @@ export async function referrerCabinetForAccount(account: {
   return {
     ...cabinet,
     available,
-    ofertaAcceptedAt: account.ofertaAcceptedAt ? account.ofertaAcceptedAt.toISOString() : null,
+    ofertaAcceptedAt,
     withdrawals: withdrawals.map((w: any) => ({
       id: w.id,
       amount: w.amount.toString(),
