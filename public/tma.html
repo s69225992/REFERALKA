@@ -149,7 +149,7 @@ let calY, calM;                 // отображаемый месяц кале�
 let selStart=null, selEnd=null; // выбор в календаре
 
 /* ===== брендовая шапка ===== */
-function head(sub){
+function brandHead(sub){
   return `<div class="brand"><div class="logo">P</div><div><div class="bname">ПРАЙМ</div><div class="btag">${sub||'Будь в ПРАЙМЕ ✨'}</div></div></div>`;
 }
 function screenInfo(title, text, emoji){
@@ -164,7 +164,7 @@ function startFlow(tgName, registeredPhone){
 
 function renderPhoneStep(tgName){
   const canShare = tg && typeof tg.requestContact === 'function';
-  app.innerHTML = `${head()}
+  app.innerHTML = `${brandHead()}
     <div style="text-align:center;margin:18px 0 6px">
       <div style="font-size:36px">👋</div>
       <h1>Привет${tgName?', '+esc(tgName):''}!</h1>
@@ -203,7 +203,7 @@ async function pollRegistered(tgName, tries){
 }
 
 function renderRole(regPhone, tgName){
-  app.innerHTML = `${head()}
+  app.innerHTML = `${brandHead()}
     <div style="text-align:center;margin:18px 0 16px">
       <div class="hint">Ваш номер: <b>${esc(regPhone)}</b></div>
       <h1 style="margin-top:8px">Вы агент или водитель?</h1>
@@ -223,14 +223,14 @@ async function doAgent(regPhone, tgName){
   const j = await api('/api/tma/phone', {initData: ID, role:'agent', phone: regPhone});
   if(j.ok && j.linked){ enterCabinet(j.cabinet, tgName); haptic('medium'); }
   else if(j.ok && j.notFound){
-    app.innerHTML = `${head()}<div class="center"><div style="font-size:38px">🔎</div><h1>Агент не найден</h1><div class="hint" style="max-width:300px">По номеру <b>${esc(regPhone)}</b> агент не найден. Обратитесь к менеджеру парка — он заведёт вас с этим номером.</div><button class="btn alt" id="back" style="margin-top:16px;max-width:240px">Назад</button></div>`;
+    app.innerHTML = `${brandHead()}<div class="center"><div style="font-size:38px">🔎</div><h1>Агент не найден</h1><div class="hint" style="max-width:300px">По номеру <b>${esc(regPhone)}</b> агент не найден. Обратитесь к менеджеру парка — он заведёт вас с этим номером.</div><button class="btn alt" id="back" style="margin-top:16px;max-width:240px">Назад</button></div>`;
     document.getElementById('back').onclick=()=>renderRole(regPhone, tgName);
   }
   else { if(msg) msg.textContent=j.error||'Ошибка'; }
 }
 
 function renderDriverChoice(regPhone, tgName){
-  app.innerHTML = `${head()}
+  app.innerHTML = `${brandHead()}
     <div style="text-align:center;margin:18px 0 16px">
       <div class="hint">Ваш номер: <b>${esc(regPhone)}</b></div>
       <h1 style="margin-top:8px">Номер в парке</h1>
@@ -262,7 +262,7 @@ async function doDriver(phone, tgName, msgId){
 }
 
 function renderPending(driverName){
-  app.innerHTML = `${head()}<div class="center">
+  app.innerHTML = `${brandHead()}<div class="center">
     <div style="font-size:44px">⏳</div>
     <h1>Заявка отправлена</h1>
     <div class="hint" style="max-width:310px">Мы нашли${driverName?' <b>'+esc(driverName)+'</b>':' водителя'} в парке. Менеджер подтвердит привязку — после этого откроется кабинет. Загляните позже.</div>
@@ -307,7 +307,7 @@ function secCabinet(){
           ${active?'<span class="chip on">активен</span>':`<div class="prog"><span class="track"><span class="fill" style="width:${pct}%"></span></span>${q}/${TH}</div>`}</div>`;
       }).join('')
     : '<div class="empty">Пока нет приведённых</div>';
-  shell(`${head()}
+  shell(`${brandHead()}
     <div class="income" id="incomeCard">
       <div class="pill">за всё время ›</div>
       <div class="il">💰 Ваш доход</div>
@@ -455,7 +455,7 @@ function secWithdraw(){
         return `<div class="item"><div><div class="inm">${fmt(w.amount)} ₽</div><div class="isub">${w.decidedAt?'решено '+ddmm(w.decidedAt):'запрошено '+ddmm(w.createdAt)}</div></div>${chip}</div>`;
       }).join('')
     : '<div class="empty">Выплат пока не было</div>';
-  shell(`${head('Ваши выплаты')}
+  shell(`${brandHead('Ваши выплаты')}
     <div class="balance">
       <div class="bl">Доступно к выводу</div>
       <div class="bv">${fmt(av)} ₽</div>
@@ -476,7 +476,7 @@ function secWithdraw(){
 /* ========================================================= ОФЕРТА ========================================================= */
 function secOffer(){
   const accepted = CAB && CAB.ofertaAcceptedAt;
-  shell(`${head('Условия программы')}
+  shell(`${brandHead('Условия программы')}
     <div class="doc">
       <h3>Реферальная программа «ПРАЙМ»</h3>
       <p>Реферер получает вознаграждение с оборота приведённых водителей по выбранному тарифу.</p>
