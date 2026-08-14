@@ -63,7 +63,12 @@ export async function GET(req: NextRequest) {
     config.assertFleet();
     const sp = req.nextUrl.searchParams;
     const fromDate = sp.get("from") ? mskDateFromAny(sp.get("from") as string) : mskDateStr(7);
-    const toDate = sp.get("to") ? mskDateFromAny(sp.get("to") as string) : mskDateStr(0);
+    // Конец периода кабинет шлёт как границу (полночь след. дня / конец дня) — трактуем
+    // как исключительный: -1 мс, иначе в период попадает лишний следующий день.
+    const toRaw = sp.get("to");
+    const toDate = toRaw
+      ? mskDateFromAny(new Date(new Date(toRaw).getTime() - 1).toISOString())
+      : mskDateStr(0);
 
     // Старые дни — из склада, последние — живьём (см. hybridPeriod).
     const { acc, split } = await hybridPeriod(fromDate, toDate, { commission: true });
