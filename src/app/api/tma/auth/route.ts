@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
     const cabinet = await referrerCabinet("driver", account.driverId);
     return NextResponse.json({ ok: true, linked: true, tgName, cabinet });
   }
-  // не привязан — фронт покажет ввод кода
-  return NextResponse.json({ ok: true, linked: false, tgName });
+  // не привязан — фронт ведёт по шагам (номер -> роль -> ...).
+  // registeredPhone — номер, которым уже поделились (из вебхука), если есть.
+  return NextResponse.json({ ok: true, linked: false, tgName, registeredPhone: account?.pendingPhone || null });
 }
