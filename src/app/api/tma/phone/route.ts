@@ -29,12 +29,13 @@ async function uniqueCode(): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const { initData, phone, role, fullName, birthDate } = (await req.json().catch(() => ({}))) as {
+  const { initData, phone, role, fullName, birthDate, device } = (await req.json().catch(() => ({}))) as {
     initData?: string;
     phone?: string;
     role?: string;
     fullName?: string;
     birthDate?: string;
+    device?: string;
   };
   const v = verifyInitData(initData || "");
   if (!v.ok || !v.user) return NextResponse.json({ ok: false, error: v.error || "auth" }, { status: 401 });
@@ -59,11 +60,18 @@ export async function POST(req: NextRequest) {
       }
       let dob: Date | null = null;
       if (birthDate && /^\d{4}-\d{2}-\d{2}$/.test(birthDate)) dob = new Date(birthDate + "T00:00:00Z");
+      // регион по гео-заголовкам Vercel
+      const country = req.headers.get("x-vercel-ip-country") || "";
+      let city = req.headers.get("x-vercel-ip-city") || "";
+      try { city = decodeURIComponent(city); } catch {}
+      const region = [country, city].filter(Boolean).join(", ") || null;
       const created = await prisma.agent.create({
         data: {
           fullName: fullName.trim(),
           phone: (phone || "").trim(),
           birthDate: dob,
+          regDevice: (device || "").slice(0, 32) || null,
+          regRegion: region,
           referralCode: await uniqueCode(),
           status: "active",
         },

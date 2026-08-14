@@ -249,7 +249,8 @@ function renderAgentRegister(regPhone, tgName){
     if(fio.length<3){ msg.textContent='Введите ФИО'; return; }
     if(!dob){ msg.textContent='Укажите дату рождения'; return; }
     reg.disabled=true; msg.textContent='Регистрируем…';
-    const j = await api('/api/tma/phone', {initData: ID, role:'agent', phone: regPhone, fullName: fio, birthDate: dob});
+    const device = (tg && tg.platform) ? String(tg.platform) : '';
+    const j = await api('/api/tma/phone', {initData: ID, role:'agent', phone: regPhone, fullName: fio, birthDate: dob, device});
     if(j.ok && j.linked){ enterCabinet(j.cabinet, tgName); haptic('medium'); }
     else { reg.disabled=false; msg.textContent=j.error||'Ошибка регистрации'; }
   };

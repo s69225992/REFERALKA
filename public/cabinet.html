@@ -527,10 +527,12 @@ const PAGES = {
   },
   agents:()=>{
     const rows = agentsList||[];
+    const fmtD = s => { if(!s) return '—'; const d=new Date(s); return isNaN(d)?'—':d.toLocaleDateString('ru-RU'); };
+    const devN = p => ({ios:'iPhone / iOS',android:'Android',tdesktop:'Desktop',macos:'macOS',weba:'Web',webk:'Web',web:'Web',unigram:'Windows'}[p]||p||'—');
     const list = agentsList===null
-      ? '<tr><td colspan="6" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
-      : (rows.length ? rows.map((a,i)=>`<tr><td class="num muted">${i+1}</td><td>${a.fullName||'—'}</td><td><span class="code">${a.referralCode}</span></td><td class="num">${a.referredActive||0} / ${a.referredTotal||0}</td><td class="num">${fmt(a.accrued||0)} ₽</td><td class="num"><button class="btn sec" style="padding:5px 10px;font-size:12px" onclick="openReferrer('agent',${a.id})">Открыть кабинет</button></td></tr>`).join('')
-        : '<tr><td colspan="6" class="muted" style="padding:12px;text-align:center">Агентов пока нет</td></tr>');
+      ? '<tr><td colspan="11" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
+      : (rows.length ? rows.map((a,i)=>`<tr><td class="num muted">${i+1}</td><td>${a.fullName||'—'}</td><td class="muted" style="font-size:12px">${a.phone||'—'}</td><td><span class="code">${a.referralCode}</span></td><td class="muted" style="font-size:12px">${fmtD(a.birthDate)}</td><td class="muted" style="font-size:12px">${fmtD(a.createdAt)}</td><td class="muted" style="font-size:12px">${devN(a.regDevice)}</td><td class="muted" style="font-size:12px">${a.regRegion||'—'}</td><td class="num">${a.referredActive||0} / ${a.referredTotal||0}</td><td class="num">${fmt(a.accrued||0)} ₽</td><td class="num"><button class="btn sec" style="padding:5px 10px;font-size:12px" onclick="openReferrer('agent',${a.id})">Открыть</button></td></tr>`).join('')
+        : '<tr><td colspan="11" class="muted" style="padding:12px;text-align:center">Агентов пока нет</td></tr>');
     return `
     <div class="muted" style="margin-bottom:12px">Агенты — внешние рефереры (не водители парка). У каждого свой реф-код; его вводят в таблице «Водители», чтобы привязать водителя к агенту.</div>
     <div class="card" style="margin-bottom:18px">
@@ -543,7 +545,7 @@ const PAGES = {
         <span id="agMsg" class="muted" style="font-size:12px"></span>
       </div>
     </div>
-    <table><thead><tr><th class="num">#</th><th>ФИО</th><th>Реф-код</th><th class="num">Активных / всего</th><th class="num">Доход</th><th class="num"></th></tr></thead>
+    <table><thead><tr><th class="num">#</th><th>ФИО</th><th>Телефон</th><th>Реф-код</th><th>Рождение</th><th>Регистрация</th><th>Устройство</th><th>Регион</th><th class="num">Активных / всего</th><th class="num">Доход</th><th class="num"></th></tr></thead>
     <tbody>${list}</tbody></table>`;
   },
   refcab:()=>{

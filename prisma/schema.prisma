@@ -45,6 +45,8 @@ model Agent {
   referralCode String   @unique @map("referral_code")
   photoUrl     String?  @map("photo_url")
   birthDate    DateTime? @map("birth_date") // дата рождения (саморегистрация агента)
+  regDevice    String?  @map("reg_device") // устройство при регистрации (ios/android/desktop/web)
+  regRegion    String?  @map("reg_region") // регион по гео (страна, город)
   status       String   @default("active") // active | blocked
   createdAt    DateTime @default(now()) @map("created_at")
 
