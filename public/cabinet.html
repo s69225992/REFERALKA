@@ -322,8 +322,8 @@ async function createAgent(){
       headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
       body:JSON.stringify({fullName:name,phone,email})});
     const j=await r.json().catch(()=>({}));
-    if(j.ok){ await loadAgents(); render(); }
-    else { if(msg) msg.textContent=j.error||'Ошибка'; if(btn){ btn.disabled=false; btn.textContent='Создать агента'; } }
+    if(j.ok){ agentsList=null; referrersList=null; await loadReferrers(); render(); }
+    else { if(msg) msg.textContent=j.error||'Ошибка'; if(btn){ btn.disabled=false; btn.textContent='Добавить'; } }
   }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Создать агента'; } }
 }
 
@@ -461,7 +461,7 @@ const myRefs = ()=>referrals.filter(r=>r.referrer==="Карен Овсепян")
 // ===== Меню =====
 const MENUS = {
   manager:[
-    ["overview","📊","Обзор"],["drivers","🧑","Водители"],["agents","🤝","Агенты"],["referrers","👥","Рефереры"],["requests","✅","Заявки"],["referrals","🔗","Рефералы"],
+    ["overview","📊","Обзор"],["drivers","🧑","Водители"],["referrers","👥","Рефереры"],["requests","✅","Заявки"],["referrals","🔗","Рефералы"],
     ["accruals","💰","Начисления"],["payouts","🏦","Выплаты"],["tariffs","🏷️","Тарифы"],
     ["oferta","📄","Оферта"],["settings","⚙️","Настройки"]
   ],
@@ -476,6 +476,7 @@ function go(p){ page=p; try{sessionStorage.setItem('ref_page',p);}catch(e){} ren
 function setInviteTariff(id){ me.inviteTariff=id; render(); }
 
 function render(){
+  if(role==='manager' && page==='agents') page='referrers'; // «Агенты» объединены в «Рефереры»
   document.getElementById('rM').className = role==='manager'?'on':'';
   document.getElementById('rR').className = role==='referrer'?'on':'';
   document.getElementById('brandSub').textContent = role==='manager'?'Таксопарк «Прайм»':'Личный кабинет водителя';
@@ -562,14 +563,26 @@ const PAGES = {
   referrers:()=>{
     const rows = referrersList||[];
     const fmtD = s => { if(!s) return '—'; const d=new Date(s); return isNaN(d)?'—':d.toLocaleDateString('ru-RU'); };
+    const devN = p => ({ios:'iPhone / iOS',android:'Android',tdesktop:'Desktop',macos:'macOS',weba:'Web',webk:'Web',web:'Web',unigram:'Windows'}[p]||p||'—');
     const linkedN = rows.filter(r=>r.linked).length;
     const list = referrersList===null
-      ? '<tr><td colspan="10" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
-      : (rows.length ? rows.map((r,i)=>`<tr><td class="num muted">${i+1}</td><td>${r.type==='agent'?'Свободный агент':'Водитель-агент'}</td><td>${r.fullName||'—'}</td><td class="muted" style="font-size:12px">${r.phone||'—'}</td><td><span class="code">${r.code}</span></td><td>${r.linked?'<span class="badge active">✅ в боте</span>':'<span class="badge pending">не заходил</span>'}</td><td class="muted" style="font-size:12px">${r.linked?fmtD(r.linkedAt):'—'}</td><td class="num">${r.referredActive||0} / ${r.referredTotal||0}</td><td class="num">${fmt(r.accrued||0)} ₽</td><td class="num"><button class="btn sec" style="padding:5px 10px;font-size:12px" onclick="openReferrer('${r.type}',${r.id})">Открыть</button></td></tr>`).join('')
-        : '<tr><td colspan="10" class="muted" style="padding:12px;text-align:center">Рефереров пока нет</td></tr>');
+      ? '<tr><td colspan="13" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
+      : (rows.length ? rows.map((r,i)=>`<tr><td class="num muted">${i+1}</td><td>${r.type==='agent'?'Свободный агент':'Водитель-агент'}</td><td>${r.fullName||'—'}</td><td class="muted" style="font-size:12px">${r.phone||'—'}</td><td><span class="code">${r.code}</span></td><td>${r.linked?'<span class="badge active">✅ в боте</span>':'<span class="badge pending">не заходил</span>'}</td><td class="muted" style="font-size:12px">${r.linked?fmtD(r.linkedAt):'—'}</td><td class="muted" style="font-size:12px">${fmtD(r.birthDate)}</td><td class="muted" style="font-size:12px">${r.type==='agent'?devN(r.device):'—'}</td><td class="muted" style="font-size:12px">${r.region||'—'}</td><td class="num">${r.referredActive||0} / ${r.referredTotal||0}</td><td class="num">${fmt(r.accrued||0)} ₽</td><td class="num"><button class="btn sec" style="padding:5px 10px;font-size:12px" onclick="openReferrer('${r.type}',${r.id})">Открыть</button></td></tr>`).join('')
+        : '<tr><td colspan="13" class="muted" style="padding:12px;text-align:center">Рефереров пока нет</td></tr>');
     return `
-    <div class="muted" style="margin-bottom:12px">Все рефереры — агенты и водители-рефереры. «В боте» показывает, зашёл ли человек в мини-приложение (зарегистрировался). ${referrersList!==null?`<b>В боте: ${linkedN} из ${rows.length}.</b>`:''}</div>
-    <table><thead><tr><th class="num">#</th><th>Тип</th><th>ФИО</th><th>Телефон</th><th>Реф-код</th><th>В боте</th><th>Зашёл</th><th class="num">Активных / всего</th><th class="num">Доход</th><th class="num"></th></tr></thead>
+    <div class="muted" style="margin-bottom:12px">Все рефереры — <b>свободные агенты</b> и <b>водители-агенты</b>. «В боте» = человек зашёл в мини-приложение (зарегистрировался). ${referrersList!==null?`<b>В боте: ${linkedN} из ${rows.length}.</b>`:''}</div>
+    <div class="card" style="margin-bottom:18px">
+      <div class="sec" style="margin-top:0">Добавить свободного агента</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+        <input id="agName" placeholder="ФИО" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+        <input id="agPhone" placeholder="Телефон" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+        <input id="agEmail" placeholder="Email" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+        <button id="agCreate" class="btn" onclick="createAgent()">Добавить</button>
+        <span id="agMsg" class="muted" style="font-size:12px"></span>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:8px">Свободный агент — внешний реферер (не водитель парка). Обычно они регистрируются сами через бота; здесь можно завести вручную — тогда он появится со статусом «не заходил», пока сам не откроет мини-апп.</div>
+    </div>
+    <table><thead><tr><th class="num">#</th><th>Тип</th><th>ФИО</th><th>Телефон</th><th>Реф-код</th><th>В боте</th><th>Зашёл</th><th>Рождение</th><th>Устройство</th><th>Регион</th><th class="num">Активных / всего</th><th class="num">Доход</th><th class="num"></th></tr></thead>
     <tbody>${list}</tbody></table>`;
   },
   refcab:()=>{
