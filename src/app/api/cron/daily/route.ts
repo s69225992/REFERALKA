@@ -18,14 +18,33 @@ export async function GET(req: NextRequest) {
   }
   try {
     config.assertFleet();
+    const started = Date.now();
+    // Бюджет времени на добор (мах функции 300с): наполняем пропуски, пока не упрёмся
+    // в бюджет или в лимит дней. Так за ночь латается больше дырок, но без таймаута.
+    const budgetMs = Number(process.env.CRON_BUDGET_MS ?? 210000); // ~3.5 мин на добор
+    const maxGaps = Number(process.env.CRON_MAX_GAPS ?? 12);
+    const lookbackDays = Number(process.env.CRON_LOOKBACK_DAYS ?? 90);
     // 1) устоявшийся день на границе живого окна
     const boundary = mskDateStr(LIVE_RECENT_DAYS);
     const results = [await syncDay(boundary)];
-    // 2) самозаполнение: докинуть до 3 пропущенных старых дней за последние 30 суток
-    //    (за несколько ночей склад догоняет месяц истории без ручного бэкфилла)
-    const gaps = (await missingDays(mskDateStr(30), mskDateStr(LIVE_RECENT_DAYS))).slice(0, 3);
-    for (const d of gaps) results.push(await syncDay(d));
-    return NextResponse.json({ ok: true, boundary, backfilled: gaps, results });
+    // 2) самозаполнение: докидываем пропущенные старые дни (старые — первыми), пока
+    //    хватает бюджета времени. За несколько ночей склад догоняет всю историю.
+    const gaps = await missingDays(mskDateStr(lookbackDays), mskDateStr(LIVE_RECENT_DAYS));
+    const backfilled: string[] = [];
+    for (const d of gaps) {
+      if (backfilled.length >= maxGaps) break;
+      if (Date.now() - started > budgetMs) break; // оставляем запас до лимита функции
+      await syncDay(d);
+      backfilled.push(d);
+    }
+    return NextResponse.json({
+      ok: true,
+      boundary,
+      backfilled,
+      gapsFound: gaps.length,
+      gapsRemaining: gaps.length - backfilled.length,
+      results,
+    });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
   }

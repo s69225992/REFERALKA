@@ -269,8 +269,15 @@ async function loadReferrers(){
     const j = await fetch('/api/admin/referrers',{headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
     referrersList = j.referrers || [];
   }catch(e){ referrersList = []; }
-  if(LIVE && page==='referrers') render();
+  render(); // всегда перерисовываем — чтобы счётчик новых был виден с любой вкладки
 }
+// «Новый» реферер = зарегистрировался ИЛИ зашёл в бот за последние 7 дней.
+const REF_NEW_MS = 7*86400000;
+function refActivityTs(r){ const c=r.createdAt?new Date(r.createdAt).getTime():0; const l=r.linkedAt?new Date(r.linkedAt).getTime():0; return Math.max(c||0,l||0); }
+function refIsNew(r){ return refActivityTs(r) >= Date.now()-REF_NEW_MS; }
+function refNewCount(){ return (referrersList||[]).filter(refIsNew).length; }
+let refFilter='new'; // какой раздел «Рефереры» открыт: 'new' | 'all'
+function setRefFilter(f){ refFilter=f; render(); }
 
 // ===== Заявки на привязку (Telegram) =====
 async function loadLinkReqs(){
@@ -431,7 +438,7 @@ function showLogin(msg){
       const j=await r.json().catch(()=>({}));
       if(!r.ok||!j.ok||!j.token){ errEl.textContent=j.error||'Неверный логин или пароль'; btn.disabled=false; btn.textContent=t0; return; }
       sessionStorage.setItem('ref_token',j.token); ov.remove();
-      const [a,b]=dayRange(0); loadLive(a,b,'Сегодня');
+      const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers();
     }catch(e){ errEl.textContent='Ошибка сети, попробуйте ещё раз'; btn.disabled=false; btn.textContent=t0; }
   };
   document.getElementById('loginGo').onclick=submit;
@@ -483,7 +490,7 @@ function render(){
   if(role==='manager'){document.getElementById('avatar').textContent='М';document.getElementById('avatar').style.background='#3b6fe0';document.getElementById('whoName').textContent='Менеджер парка';document.getElementById('whoRole').textContent='Администратор';}
   else{document.getElementById('avatar').textContent='К';document.getElementById('avatar').style.background='#1a9e57';document.getElementById('whoName').textContent=me.name;document.getElementById('whoRole').textContent='Реферер (агент)';}
   const nav=document.getElementById('nav');nav.innerHTML='';
-  MENUS[role].forEach(([id,ic,label])=>{const a=document.createElement('a');a.className=(id===page?'active':'');a.onclick=()=>go(id);a.innerHTML=ic?`<span class="ic">${ic}</span> ${label}`:label;nav.appendChild(a);});
+  MENUS[role].forEach(([id,ic,label])=>{const a=document.createElement('a');a.className=(id===page?'active':'');a.onclick=()=>go(id);let bdg='';if(id==='referrers'&&role==='manager'){const n=refNewCount();if(n>0)bdg=` <span style="background:#e5484d;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:6px">${n}</span>`;}a.innerHTML=ic?`<span class="ic">${ic}</span> ${label}${bdg}`:label+bdg;nav.appendChild(a);});
   const _mi = MENUS[role].find(m=>m[0]===page);
   document.getElementById('pageTitle').textContent = _mi ? _mi[2] : (page==='refcab' ? 'Кабинет реферера' : '');
   document.getElementById('content').innerHTML = PAGES[page]();
@@ -561,16 +568,25 @@ const PAGES = {
     <tbody>${list}</tbody></table>`;
   },
   referrers:()=>{
-    const rows = referrersList||[];
+    const all = referrersList||[];
     const fmtD = s => { if(!s) return '—'; const d=new Date(s); return isNaN(d)?'—':d.toLocaleDateString('ru-RU'); };
     const devN = p => ({ios:'iPhone / iOS',android:'Android',tdesktop:'Desktop',macos:'macOS',weba:'Web',webk:'Web',web:'Web',unigram:'Windows'}[p]||p||'—');
-    const linkedN = rows.filter(r=>r.linked).length;
+    const linkedN = all.filter(r=>r.linked).length;
+    const newN = all.filter(refIsNew).length;
+    // новыми — вверх (по последней активности: регистрация или вход в бот)
+    const sorted = [...all].sort((a,b)=>refActivityTs(b)-refActivityTs(a));
+    const shown = refFilter==='new' ? sorted.filter(refIsNew) : sorted;
+    const row = (r,i)=>`<tr${refIsNew(r)?' style="background:#fff6f0"':''}><td class="num muted">${i+1}</td><td>${r.type==='agent'?'Свободный агент':'Водитель-агент'}</td><td>${r.fullName||'—'}${refIsNew(r)?' <span class="badge active" style="background:#e5484d">🆕 новый</span>':''}</td><td class="muted" style="font-size:12px">${r.phone||'—'}</td><td><span class="code">${r.code}</span></td><td class="muted" style="font-size:12px">${fmtD(r.createdAt)}</td><td>${r.linked?'<span class="badge active">✅ в боте</span>':'<span class="badge pending">не заходил</span>'}</td><td class="muted" style="font-size:12px">${r.linked?fmtD(r.linkedAt):'—'}</td><td class="muted" style="font-size:12px">${fmtD(r.birthDate)}</td><td class="muted" style="font-size:12px">${r.type==='agent'?devN(r.device):'—'}</td><td class="muted" style="font-size:12px">${r.region||'—'}</td><td class="num">${r.referredActive||0} / ${r.referredTotal||0}</td><td class="num">${fmt(r.accrued||0)} ₽</td><td class="num"><button class="btn sec" style="padding:5px 10px;font-size:12px" onclick="openReferrer('${r.type}',${r.id})">Открыть</button></td></tr>`;
+    const emptyTxt = refFilter==='new' ? 'Новых за 7 дней нет' : 'Рефереров пока нет';
     const list = referrersList===null
-      ? '<tr><td colspan="13" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
-      : (rows.length ? rows.map((r,i)=>`<tr><td class="num muted">${i+1}</td><td>${r.type==='agent'?'Свободный агент':'Водитель-агент'}</td><td>${r.fullName||'—'}</td><td class="muted" style="font-size:12px">${r.phone||'—'}</td><td><span class="code">${r.code}</span></td><td>${r.linked?'<span class="badge active">✅ в боте</span>':'<span class="badge pending">не заходил</span>'}</td><td class="muted" style="font-size:12px">${r.linked?fmtD(r.linkedAt):'—'}</td><td class="muted" style="font-size:12px">${fmtD(r.birthDate)}</td><td class="muted" style="font-size:12px">${r.type==='agent'?devN(r.device):'—'}</td><td class="muted" style="font-size:12px">${r.region||'—'}</td><td class="num">${r.referredActive||0} / ${r.referredTotal||0}</td><td class="num">${fmt(r.accrued||0)} ₽</td><td class="num"><button class="btn sec" style="padding:5px 10px;font-size:12px" onclick="openReferrer('${r.type}',${r.id})">Открыть</button></td></tr>`).join('')
-        : '<tr><td colspan="13" class="muted" style="padding:12px;text-align:center">Рефереров пока нет</td></tr>');
+      ? '<tr><td colspan="14" class="muted" style="padding:12px;text-align:center">Загрузка…</td></tr>'
+      : (shown.length ? shown.map(row).join('') : `<tr><td colspan="14" class="muted" style="padding:12px;text-align:center">${emptyTxt}</td></tr>`);
     return `
-    <div class="muted" style="margin-bottom:12px">Все рефереры — <b>свободные агенты</b> и <b>водители-агенты</b>. «В боте» = человек зашёл в мини-приложение (зарегистрировался). ${referrersList!==null?`<b>В боте: ${linkedN} из ${rows.length}.</b>`:''}</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn ${refFilter==='new'?'':'sec'}" onclick="setRefFilter('new')">🆕 Новые${newN?` (${newN})`:''}</button>
+      <button class="btn ${refFilter==='all'?'':'sec'}" onclick="setRefFilter('all')">Все${all.length?` (${all.length})`:''}</button>
+    </div>
+    <div class="muted" style="margin-bottom:12px">Рефереры — это те, кто <b>приглашает</b>: <b>свободные агенты</b> (внешние) и <b>водители-агенты</b> (водители парка). «В боте» = человек зашёл в мини-приложение. «Новый» = зарегистрировался или зашёл за последние 7 дней. ${referrersList!==null?`<b>В боте: ${linkedN} из ${all.length}. Новых: ${newN}.</b>`:''}</div>
     <div class="card" style="margin-bottom:18px">
       <div class="sec" style="margin-top:0">Добавить свободного агента</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
@@ -582,7 +598,7 @@ const PAGES = {
       </div>
       <div class="muted" style="font-size:12px;margin-top:8px">Свободный агент — внешний реферер (не водитель парка). Обычно они регистрируются сами через бота; здесь можно завести вручную — тогда он появится со статусом «не заходил», пока сам не откроет мини-апп.</div>
     </div>
-    <table><thead><tr><th class="num">#</th><th>Тип</th><th>ФИО</th><th>Телефон</th><th>Реф-код</th><th>В боте</th><th>Зашёл</th><th>Рождение</th><th>Устройство</th><th>Регион</th><th class="num">Активных / всего</th><th class="num">Доход</th><th class="num"></th></tr></thead>
+    <table><thead><tr><th class="num">#</th><th>Тип</th><th>ФИО</th><th>Телефон</th><th>Реф-код</th><th>Зарегистрирован</th><th>В боте</th><th>Зашёл</th><th>Рождение</th><th>Устройство</th><th>Регион</th><th class="num">Активных / всего</th><th class="num">Доход</th><th class="num"></th></tr></thead>
     <tbody>${list}</tbody></table>`;
   },
   refcab:()=>{
@@ -772,7 +788,7 @@ function ofertaDoc(forReferrer){
     page = (sp && MENUS[role].some(m=>m[0]===sp)) ? sp : MENUS[role][0][0];
   }catch(e){}
   render();
-  if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); }
+  if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers(); }
   else { setBadge('demo'); showLogin(); }
 })();
 </script>
