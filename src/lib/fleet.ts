@@ -143,9 +143,14 @@ export class FleetClient {
   }
 
   // Только УСПЕШНО ЗАВЕРШЁННЫЕ заказы за период, с группировкой по водителю.
-  // Один проход по orders/list. total и byDriver считают лишь заказы со статусом
-  // "complete" (отменённые/просроченные/неуспешные — исключаются).
-  // statusCounts — разбивка по всем статусам (диагностика), sampleKeys — ключи заказа.
+  // ВАЖНО: считаем по ВРЕМЕНИ ЗАВЕРШЕНИЯ (ended_at), а не по booked_at — чтобы цифра
+  // совпадала со сводкой Fleet «Успешно завершённые заказы» (она группирует по дате
+  // завершения). Заказ мог быть создан до начала суток, а завершиться внутри —
+  // поэтому тянем страницы с запасом назад по booked_at, а затем оставляем только те,
+  // чей ended_at попал в целевое окно [from, to]. Комиссия уже считается по event_at
+  // транзакций (тоже момент завершения), поэтому деньги и так совпадают — эта правка
+  // выравнивает и счётчик заказов на границах суток.
+  // Fallback: если у заказа нет ended_at, берём booked_at (тогда поведение как раньше).
   async ordersByDriver(
     from: string,
     to: string,
@@ -155,15 +160,24 @@ export class FleetClient {
     byDriver: Record<string, number>;
     statusCounts: Record<string, number>;
     sampleKeys: string[];
+    withEndedAt: number;
+    completeSeen: number;
   }> {
+    const padHours = Number(process.env.ORDERS_END_PAD_HOURS ?? 48);
+    const fromMs = new Date(from).getTime();
+    const toMs = new Date(to).getTime();
+    const fetchFrom = new Date(fromMs - padHours * 60 * 60 * 1000).toISOString();
+
     let total = 0;
     const byDriver: Record<string, number> = {};
     const statusCounts: Record<string, number> = {};
     let sampleKeys: string[] = [];
+    let withEndedAt = 0; // сколько «завершённых» заказов реально имели ended_at (диагностика)
+    let completeSeen = 0; // всего заказов со статусом complete в окне выборки (диагностика)
     let cursor: string | undefined;
     for (let guard = 0; guard < 1000; guard++) {
       const body: Json = {
-        query: { park: { id: this.parkId, order: { booked_at: { from, to } } } },
+        query: { park: { id: this.parkId, order: { booked_at: { from: fetchFrom, to } } } },
         limit,
       };
       if (cursor) body.cursor = cursor;
@@ -175,6 +189,15 @@ export class FleetClient {
         const status = String(o.status ?? "");
         statusCounts[status] = (statusCounts[status] ?? 0) + 1;
         if (status !== "complete") continue; // только успешно завершённые
+        completeSeen++;
+        // Момент завершения: ended_at (основной), иначе booked_at (совместимый fallback).
+        const endedRaw = (o.ended_at as string) || "";
+        if (endedRaw) withEndedAt++;
+        const endMs = endedRaw
+          ? new Date(endedRaw).getTime()
+          : new Date((o.booked_at as string) || "").getTime();
+        // Учитываем только заказы, завершившиеся внутри целевого окна [from, to].
+        if (!Number.isNaN(endMs) && (endMs < fromMs || endMs > toMs)) continue;
         total++;
         const dp = o.driver_profile as Json | undefined;
         const perf = o.performer as Json | undefined;
@@ -191,7 +214,7 @@ export class FleetClient {
       if (!cursor || batch.length === 0) break;
       await new Promise((r) => setTimeout(r, 250)); // пауза между страницами против 429
     }
-    return { total, byDriver, statusCounts, sampleKeys };
+    return { total, byDriver, statusCounts, sampleKeys, withEndedAt, completeSeen };
   }
 
   // Создать транзакцию на балансе водителя (ВЫПЛАТА). idempotencyKey -> X-Idempotency-Token.
