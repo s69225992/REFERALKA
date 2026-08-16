@@ -11,6 +11,29 @@ import { config } from "@/lib/config";
 
 type Json = Record<string, unknown>;
 
+// Точное представление денежной суммы в десятитысячных долях рубля (1/10000), целым.
+// Fleet отдаёт amount строкой (обычно 4 знака после запятой). Складывать такие суммы
+// в float опасно: накопленная ошибка изредка перекидывает копейку при округлении и
+// даёт расхождение в 1 коп. с отчётом Fleet. Поэтому парсим точно и суммируем целыми.
+export function amountToTenThousandths(v: unknown): number {
+  if (typeof v === "number") return Math.round(v * 10000);
+  let s = String(v ?? "").trim();
+  if (!s) return 0;
+  const neg = s.startsWith("-");
+  if (neg || s.startsWith("+")) s = s.slice(1);
+  const [ip, fpRaw = ""] = s.split(".");
+  const intPart = parseInt(ip || "0", 10);
+  if (Number.isNaN(intPart)) return Math.round((Number(v) || 0) * 10000);
+  const fp = (fpRaw + "0000").slice(0, 4);
+  const fracPart = parseInt(fp || "0", 10) || 0;
+  const val = intPart * 10000 + fracPart;
+  return neg ? -val : val;
+}
+// Десятитысячные → рубли, округление до копейки (как в сводке Fleet).
+export function tenThousandthsToRub(tt: number): number {
+  return Math.round(tt / 100) / 100; // 100 десятитысячных = 1 копейка
+}
+
 function isActive(profile: Json): boolean {
   const dp = (profile.driver_profile as Json) ?? profile;
   // work_status: "working" | "not_working" | "fired" (по докам Fleet API)
@@ -72,20 +95,21 @@ export async function buildTestReport(from: string, to: string, client = new Fle
 
     const txs = await client.listDriverTransactions(id, from, to);
     const byCategory: Record<string, number> = {};
-    let commission = 0;
+    let commissionTt = 0; // комиссия в десятитысячных (точное целочисленное суммирование)
 
     for (const tx of txs) {
       const category = (tx.category_id as string) ?? (tx.category_name as string) ?? "unknown";
-      const amount = Number((tx.amount as string | number) ?? 0);
+      const amtTt = amountToTenThousandths((tx.amount as string | number) ?? 0);
       // Комиссия парка = НЕТТО по нужным категориям (сумма со знаком, включая
       // положительные корректировки/возвраты) — как в сводном отчёте Fleet.
       // Раньше суммировались только модули отрицательных, из-за чего разовые
       // возвраты внутри категории задваивали комиссию (расхождение в копейки/рубли).
-      if (allowed.size > 0 && allowed.has(category)) commission += amount;
-      if (amount < 0) byCategory[category] = (byCategory[category] ?? 0) + -amount; // справочно
+      if (allowed.size > 0 && allowed.has(category)) commissionTt += amtTt;
+      if (amtTt < 0) byCategory[category] = (byCategory[category] ?? 0) + -amtTt / 10000; // справочно
     }
 
-    commission = Math.round(Math.abs(commission) * 100) / 100;
+    // Точное округление до копейки из целочисленной суммы — совпадает с Fleet.
+    const commission = tenThousandthsToRub(Math.abs(commissionTt));
     const share = Math.round(commission * rate * 100) / 100;
 
     rows.push({ driverId: id, name, workStatus, parkCommission: commission, referralShare: share, byCategory });

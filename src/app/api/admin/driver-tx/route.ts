@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { authed } from "@/lib/auth";
 import { config } from "@/lib/config";
 import { FleetClient } from "@/lib/fleet";
+import { amountToTenThousandths, tenThousandthsToRub } from "@/lib/services/report";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -60,11 +61,28 @@ export async function GET(req: NextRequest) {
   const parkCommission =
     Math.round(categories.filter((c) => c.inCommission).reduce((s, c) => s + c.negAbs, 0) * 100) / 100;
 
+  // Сверка методов расчёта НЕТТО по категориям комиссии (как в отчёте):
+  //  - exact: целочисленное суммирование десятитысячных → округление до копейки (совпадает с Fleet)
+  //  - float: старое суммирование в плавающей точке (могло давать ±1 коп.)
+  let commTt = 0;
+  let commFloat = 0;
+  for (const tx of txs) {
+    const cat = (tx.category_id as string) ?? (tx.category_name as string) ?? "unknown";
+    if (!allowed.has(cat)) continue;
+    commTt += amountToTenThousandths((tx.amount as string | number) ?? 0);
+    commFloat += Number((tx.amount as string | number) ?? 0);
+  }
+  const parkCommissionExact = tenThousandthsToRub(Math.abs(commTt));
+  const parkCommissionFloat = Math.round(Math.abs(commFloat) * 100) / 100;
+
   return NextResponse.json({
     ok: true,
     driver: { id: driver.id, name: driver.fullName, yandexDriverId: driver.yandexDriverId },
     commissionCategoryIds: config.referral.commissionCategoryIds,
     parkCommission,
+    parkCommissionExact,
+    parkCommissionFloat,
+    diffKop: Math.round((parkCommissionExact - parkCommissionFloat) * 100),
     categories,
   });
 }
