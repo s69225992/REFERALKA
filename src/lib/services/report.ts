@@ -30,8 +30,18 @@ export function amountToTenThousandths(v: unknown): number {
   return neg ? -val : val;
 }
 // Десятитысячные → рубли, округление до копейки (как в сводке Fleet).
+// ВАЖНО: Fleet округляет РОВНО половину копейки ВНИЗ (к нулю), а не вверх.
+// Проверено на сырых транзакциях: 605,4250 → 605,42; 751,1750 → 751,17 (как во Fleet),
+// тогда как обычный Math.round дал бы 605,43 / 751,18. Все прочие значения (хвост ≠ …,…50)
+// округляются как обычно. Работаем в целых, поэтому без float-дрейфа.
 export function tenThousandthsToRub(tt: number): number {
-  return Math.round(tt / 100) / 100; // 100 десятитысячных = 1 копейка
+  const neg = tt < 0;
+  const abs = Math.abs(tt);
+  const whole = Math.floor(abs / 100); // целые копейки
+  const rem = abs - whole * 100; // остаток в сотых копейки, 0..99
+  const kop = whole + (rem > 50 ? 1 : 0); // >50 — вверх; ровно 50 и меньше — вниз
+  const rub = kop / 100;
+  return neg ? -rub : rub;
 }
 
 function isActive(profile: Json): boolean {
