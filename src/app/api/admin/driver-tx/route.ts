@@ -66,13 +66,26 @@ export async function GET(req: NextRequest) {
   //  - float: старое суммирование в плавающей точке (могло давать ±1 коп.)
   let commTt = 0;
   let commFloat = 0;
+  const commAmountsRaw: string[] = [];
+  let sumRoundEachKop = 0; // сумма (в копейках) round(каждой транзакции до копейки)
+  let sumTruncEachKop = 0; // сумма (в копейках) trunc(каждой транзакции до копейки)
   for (const tx of txs) {
     const cat = (tx.category_id as string) ?? (tx.category_name as string) ?? "unknown";
     if (!allowed.has(cat)) continue;
-    commTt += amountToTenThousandths((tx.amount as string | number) ?? 0);
+    const tt = amountToTenThousandths((tx.amount as string | number) ?? 0);
+    commTt += tt;
     commFloat += Number((tx.amount as string | number) ?? 0);
+    commAmountsRaw.push(String((tx.amount as string | number) ?? ""));
+    sumRoundEachKop += Math.round(tt / 100); // ten-thousandths → копейки, округление каждой
+    sumTruncEachKop += Math.trunc(tt / 100); // ten-thousandths → копейки, усечение каждой
   }
-  const parkCommissionExact = tenThousandthsToRub(Math.abs(commTt));
+  // Кандидаты для сверки с Fleet (по абсолютной величине НЕТТО):
+  const absTt = Math.abs(commTt);
+  const roundTotal = Math.round(absTt / 100) / 100; // текущий (округление итога)
+  const truncTotal = Math.trunc(absTt / 100) / 100; // усечение итога
+  const roundEach = Math.abs(sumRoundEachKop) / 100; // округление каждой транзакции, затем сумма
+  const truncEach = Math.abs(sumTruncEachKop) / 100; // усечение каждой транзакции, затем сумма
+  const parkCommissionExact = roundTotal;
   const parkCommissionFloat = Math.round(Math.abs(commFloat) * 100) / 100;
 
   return NextResponse.json({
@@ -83,6 +96,9 @@ export async function GET(req: NextRequest) {
     parkCommissionExact,
     parkCommissionFloat,
     diffKop: Math.round((parkCommissionExact - parkCommissionFloat) * 100),
+    commTenThousandths: commTt,
+    candidates: { roundTotal, truncTotal, roundEach, truncEach },
+    commAmountsRaw,
     categories,
   });
 }
