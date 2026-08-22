@@ -105,87 +105,73 @@ export function mskDateFromAny(s: string): string {
   return new Date(t.getTime() + MSK_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-// Сколько последних дней тянуть живьём (остальное — из склада). Старше — «закрытые» дни.
+// Сколько последних дней держим «свежими» в складе (сегодня/вчера меняются).
 const LIVE_RECENT_DAYS = Number(process.env.LIVE_RECENT_DAYS ?? 4);
+// Сколько последних дней освежать на чтении дашборда (обычно хватает сегодня+вчера).
+const REFRESH_RECENT_DAYS = Number(process.env.REFRESH_RECENT_DAYS ?? 2);
+// TTL кэша свежих дней: день перетягиваем из Fleet не чаще, чем раз в это время.
+const RECENT_CACHE_TTL_MS = Number(process.env.RECENT_CACHE_TTL_MS ?? 3 * 60 * 60 * 1000); // 3 часа
 
-// Склейка периода: старые дни берём из склада, последние LIVE_RECENT_DAYS — живьём из Fleet.
-// opts выбирает, что тянуть живьём: {commission} для отчёта, {orders} для счётчика заказов
-// (склад всегда содержит и то и другое; живой вызов делаем только для нужного).
+// Освежить последние дни в складе, если данные устарели (> TTL) или их ещё нет.
+// Тяжёлый вызов к Fleet делается максимум раз в TTL на день — поэтому вход в кабинет быстрый:
+// в пределах 3 часов Обзор читается из склада мгновенно, без запросов к Fleet.
+export async function ensureRecentFresh(days = REFRESH_RECENT_DAYS): Promise<string[]> {
+  const now = Date.now();
+  const refreshed: string[] = [];
+  for (let d = 0; d < days; d++) {
+    const ds = mskDateStr(d);
+    const dateObj = new Date(`${ds}T00:00:00.000Z`);
+    const agg = await prisma.driverDailyStat.aggregate({
+      where: { date: dateObj },
+      _max: { pulledAt: true },
+      _count: { _all: true },
+    });
+    const last = agg._max.pulledAt ? new Date(agg._max.pulledAt).getTime() : 0;
+    const fresh = (agg._count._all ?? 0) > 0 && now - last < RECENT_CACHE_TTL_MS;
+    if (!fresh) {
+      try {
+        await syncDay(ds, false); // final=false — окончательно закроется ночным cron через пару дней
+        refreshed.push(ds);
+      } catch {
+        /* не роняем дашборд, если Fleet недоступен — покажем что есть в складе */
+      }
+    }
+  }
+  return refreshed;
+}
+
+// Период для дашборда: держим свежие дни в складе (TTL 3ч) и читаем ВЕСЬ период из склада.
+// К Fleet на каждом открытии больше не ходим — только когда истёк TTL по конкретному дню.
+// opts оставлен для совместимости вызовов (склад всегда содержит и заказы, и комиссию).
 export async function hybridPeriod(
   fromDate: string,
   toDate: string,
-  opts: { commission?: boolean; orders?: boolean } = {},
+  _opts: { commission?: boolean; orders?: boolean } = {},
 ) {
-  const recentFrom = mskDateStr(LIVE_RECENT_DAYS - 1); // первый «живой» день (напр. 3 дня назад)
-  const storedTo = mskDateStr(LIVE_RECENT_DAYS); // последний «закрытый» день (напр. 4 дня назад)
-
-  const storedToEff = toDate < storedTo ? toDate : storedTo;
-  const useStored = fromDate <= storedToEff;
-  const liveFromEff = fromDate > recentFrom ? fromDate : recentFrom;
-  const useLive = liveFromEff <= toDate;
+  const refreshed = await ensureRecentFresh();
 
   type Acc = { name: string; parkCommission: number; orders: number };
   const acc = new Map<string, Acc>();
-  const ensure = (yid: string): Acc => {
-    let e = acc.get(yid);
-    if (!e) {
-      e = { name: "", parkCommission: 0, orders: 0 };
-      acc.set(yid, e);
-    }
-    return e;
-  };
 
-  // --- старая часть: из склада ---
-  if (useStored) {
-    const rows = await periodStats(fromDate, storedToEff);
-    const drivers = await prisma.driver.findMany({
-      select: { id: true, yandexDriverId: true, fullName: true },
+  const rows = await periodStats(fromDate, toDate);
+  const drivers = await prisma.driver.findMany({
+    select: { id: true, yandexDriverId: true, fullName: true },
+  });
+  const meta = new Map<number, { yandexDriverId: string; fullName: string | null }>(
+    drivers.map((d: { id: number; yandexDriverId: string; fullName: string | null }) => [
+      d.id,
+      { yandexDriverId: d.yandexDriverId, fullName: d.fullName },
+    ]),
+  );
+  for (const r of rows as Array<{ driverId: number; _sum: { parkCommission: number | null; orders: number | null } }>) {
+    const m = meta.get(r.driverId);
+    if (!m) continue;
+    acc.set(m.yandexDriverId, {
+      name: m.fullName || "",
+      parkCommission: Number(r._sum.parkCommission || 0),
+      orders: Number(r._sum.orders || 0),
     });
-    const meta = new Map<number, { yandexDriverId: string; fullName: string | null }>(
-      drivers.map((d: { id: number; yandexDriverId: string; fullName: string | null }) => [
-        d.id,
-        { yandexDriverId: d.yandexDriverId, fullName: d.fullName },
-      ]),
-    );
-    for (const r of rows as Array<{ driverId: number; _sum: { parkCommission: number | null; orders: number | null } }>) {
-      const m = meta.get(r.driverId);
-      if (!m) continue;
-      const e = ensure(m.yandexDriverId);
-      e.name = m.fullName || e.name;
-      e.parkCommission += Number(r._sum.parkCommission || 0);
-      e.orders += Number(r._sum.orders || 0);
-    }
   }
 
-  // --- свежая часть: живьём из Fleet ---
-  if (useLive) {
-    const client = new FleetClient();
-    const winFrom = mskDayWindow(liveFromEff).from;
-    const winTo = mskDayWindow(toDate).to;
-    const [report, orders] = await Promise.all([
-      opts.commission ? buildTestReport(winFrom, winTo, client) : Promise.resolve(null),
-      opts.orders ? client.ordersByDriver(winFrom, winTo) : Promise.resolve(null),
-    ]);
-    if (report) {
-      for (const r of report.rows) {
-        const e = ensure(r.driverId);
-        e.name = e.name || r.name;
-        e.parkCommission += r.parkCommission;
-      }
-    }
-    if (orders) {
-      const bd = (orders.byDriver ?? {}) as Record<string, number>;
-      for (const [yid, c] of Object.entries(bd)) {
-        ensure(yid).orders += Number(c) || 0;
-      }
-    }
-  }
-
-  return {
-    acc,
-    split: {
-      stored: useStored ? { from: fromDate, to: storedToEff } : null,
-      live: useLive ? { from: liveFromEff, to: toDate } : null,
-    },
-  };
+  return { acc, split: { stored: { from: fromDate, to: toDate }, live: null, refreshed } };
 }
