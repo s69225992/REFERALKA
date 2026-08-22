@@ -279,6 +279,17 @@ function refNewCount(){ return (referrersList||[]).filter(refIsNew).length; }
 let refFilter='new'; // какой раздел «Рефереры» открыт: 'new' | 'all'
 function setRefFilter(f){ refFilter=f; render(); }
 
+// ===== Посуточная сводка за 30 дней (для «Обзора») =====
+let dailySeries = null; // [{date, orders, commission, drivers}]
+async function loadDailySeries(){
+  const token = sessionStorage.getItem('ref_token'); if(!token) return;
+  try{
+    const j = await fetch('/api/admin/daily-series?days=30',{headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    dailySeries = j.series || [];
+  }catch(e){ dailySeries = []; }
+  if(page==='overview') render();
+}
+
 // ===== Заявки на привязку (Telegram) =====
 async function loadLinkReqs(){
   const token = sessionStorage.getItem('ref_token'); if(!token) return;
@@ -438,7 +449,7 @@ function showLogin(msg){
       const j=await r.json().catch(()=>({}));
       if(!r.ok||!j.ok||!j.token){ errEl.textContent=j.error||'Неверный логин или пароль'; btn.disabled=false; btn.textContent=t0; return; }
       sessionStorage.setItem('ref_token',j.token); ov.remove();
-      const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers();
+      const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers(); loadDailySeries();
     }catch(e){ errEl.textContent='Ошибка сети, попробуйте ещё раз'; btn.disabled=false; btn.textContent=t0; }
   };
   document.getElementById('loginGo').onclick=submit;
@@ -479,7 +490,7 @@ const MENUS = {
 };
 let role="manager", page="overview";
 function setRole(r){ role=r; page=MENUS[r][0][0]; try{sessionStorage.setItem('ref_role',r);sessionStorage.setItem('ref_page',page);}catch(e){} render(); }
-function go(p){ page=p; try{sessionStorage.setItem('ref_page',p);}catch(e){} render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='referrers' && referrersList===null) loadReferrers(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); if(p==='requests' && linkReqs===null) loadLinkReqs(); } }
+function go(p){ page=p; try{sessionStorage.setItem('ref_page',p);}catch(e){} render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='referrers' && referrersList===null) loadReferrers(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); if(p==='requests' && linkReqs===null) loadLinkReqs(); if(p==='overview' && dailySeries===null) loadDailySeries(); } }
 function setInviteTariff(id){ me.inviteTariff=id; render(); }
 
 function render(){
@@ -506,6 +517,22 @@ const PAGES = {
     const ph = token ? '…' : '—';
     const pend = S(referrals.filter(r=>r.status==='active').reduce((s,r)=>s+refEarn(r),0))*0.4;
     const agentPay = S(referrals.filter(r=>r.status==='active').reduce((s,r)=>s+refEarn(r),0));
+    // Посуточные квадратики за 30 дней (прибыль / водители / заказы) — ниже сводки.
+    const dcard = d => {
+      const dt = d.date.slice(8,10)+'.'+d.date.slice(5,7);
+      return `<div class="card" style="padding:14px;margin:0">
+        <div style="font-weight:700;margin-bottom:10px;font-size:15px">${dt}</div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin:4px 0"><span class="muted">Прибыль</span><b>${fmt(Math.round(d.commission))} ₽</b></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin:4px 0"><span class="muted">Водители</span><b>${d.drivers}</b></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin:4px 0"><span class="muted">Заказы</span><b>${(d.orders||0).toLocaleString('ru-RU')}</b></div>
+      </div>`;
+    };
+    const dailyBlock = `<div class="sec" style="margin-top:24px">Последние 30 дней <span class="muted" style="font-weight:400;font-size:13px">— по дням</span></div>`
+      + (dailySeries===null
+          ? `<div class="muted" style="padding:8px">${token?'Загрузка…':'Войдите, чтобы увидеть данные'}</div>`
+          : (dailySeries.length
+              ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">${dailySeries.slice().reverse().map(dcard).join('')}</div>`
+              : `<div class="muted" style="padding:8px">Пока нет данных по дням (появятся после ночного досинка)</div>`));
     return periodBar() + `
     <div class="grid">
       <div class="card"><div class="lbl">Активных водителей</div><div class="val">${showReal?activeDrivers:ph}</div><div class="sub">с комиссией за период</div></div>
@@ -528,7 +555,7 @@ const PAGES = {
           <div style="margin-top:6px">${TARIFFS.map(t=>`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Парк ${t.park}%</span><span class="muted">реферер ${String(t.ref).replace('.',',')}% с оборота</span></div>`).join('')}</div>
         </div>
       </div>
-    </div>`;
+    </div>${dailyBlock}`;
   },
   drivers:()=>{
     const waiting = !!sessionStorage.getItem('ref_token') && !liveLoaded;
@@ -788,7 +815,7 @@ function ofertaDoc(forReferrer){
     page = (sp && MENUS[role].some(m=>m[0]===sp)) ? sp : MENUS[role][0][0];
   }catch(e){}
   render();
-  if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers(); }
+  if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers(); loadDailySeries(); }
   else { setBadge('demo'); showLogin(); }
 })();
 </script>
