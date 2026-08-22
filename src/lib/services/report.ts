@@ -29,6 +29,22 @@ export function amountToTenThousandths(v: unknown): number {
   const val = intPart * 10000 + fracPart;
   return neg ? -val : val;
 }
+// Пул ограниченного параллелизма: прогоняет items через fn, не более limit одновременно.
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const out = new Array(items.length) as R[];
+  let i = 0;
+  const n = Math.max(1, Math.min(limit, items.length || 1));
+  const workers = Array.from({ length: n }, async () => {
+    for (;;) {
+      const idx = i++;
+      if (idx >= items.length) break;
+      out[idx] = await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 // Десятитысячные → рубли, округление до копейки (как в сводке Fleet).
 // ВАЖНО: Fleet округляет РОВНО половину копейки ВНИЗ (к нулю), а не вверх.
 // Проверено на сырых транзакциях: 605,4250 → 605,42; 751,1750 → 751,17 (как во Fleet),
@@ -95,36 +111,35 @@ export async function buildTestReport(from: string, to: string, client = new Fle
   const profiles = await client.listDrivers();
   const active = profiles.filter(isActive);
 
-  const rows: DriverReportRow[] = [];
-  let totalCommission = 0;
-  let totalShare = 0;
+  // Активные водители с id. Транзакции по ним тянем ПАРАЛЛЕЛЬНО (пул) — иначе
+  // на 250 водителях день считается минуты. Результат идентичен последовательному:
+  // те же транзакции, та же сумма; параллелизм только ускоряет ввод-вывод.
+  const actives = active.map(driverInfo).filter((d) => d.id);
+  const POOL = Number(process.env.FLEET_TX_CONCURRENCY ?? 6);
 
-  for (const profile of active) {
-    const { id, name, workStatus } = driverInfo(profile);
-    if (!id) continue;
-
-    const txs = await client.listDriverTransactions(id, from, to);
+  const computed = await mapPool(actives, POOL, async (d) => {
+    const txs = await client.listDriverTransactions(d.id, from, to);
     const byCategory: Record<string, number> = {};
     let commissionTt = 0; // комиссия в десятитысячных (точное целочисленное суммирование)
-
     for (const tx of txs) {
       const category = (tx.category_id as string) ?? (tx.category_name as string) ?? "unknown";
       const amtTt = amountToTenThousandths((tx.amount as string | number) ?? 0);
-      // Комиссия парка = НЕТТО по нужным категориям (сумма со знаком, включая
-      // положительные корректировки/возвраты) — как в сводном отчёте Fleet.
-      // Раньше суммировались только модули отрицательных, из-за чего разовые
-      // возвраты внутри категории задваивали комиссию (расхождение в копейки/рубли).
+      // Комиссия парка = НЕТТО по нужным категориям (со знаком, как в сводке Fleet).
       if (allowed.size > 0 && allowed.has(category)) commissionTt += amtTt;
       if (amtTt < 0) byCategory[category] = (byCategory[category] ?? 0) + -amtTt / 10000; // справочно
     }
-
-    // Точное округление до копейки из целочисленной суммы — совпадает с Fleet.
+    // Точное округление до копейки (половина копейки — вниз, как во Fleet).
     const commission = tenThousandthsToRub(Math.abs(commissionTt));
     const share = Math.round(commission * rate * 100) / 100;
+    return { driverId: d.id, name: d.name, workStatus: d.workStatus, parkCommission: commission, referralShare: share, byCategory };
+  });
 
-    rows.push({ driverId: id, name, workStatus, parkCommission: commission, referralShare: share, byCategory });
-    totalCommission += commission;
-    totalShare += share;
+  const rows: DriverReportRow[] = computed;
+  let totalCommission = 0;
+  let totalShare = 0;
+  for (const r of rows) {
+    totalCommission += r.parkCommission;
+    totalShare += r.referralShare;
   }
 
   rows.sort((a, b) => b.parkCommission - a.parkCommission);

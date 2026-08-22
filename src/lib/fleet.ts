@@ -112,7 +112,8 @@ export class FleetClient {
         limit,
       };
       if (cursor) body.cursor = cursor;
-      const data = await this.post("/v2/parks/driver-profiles/transactions/list", body);
+      // postWithRetry — повтор на 429, чтобы безопасно тянуть транзакции параллельно.
+      const data = await this.postWithRetry("/v2/parks/driver-profiles/transactions/list", body);
       out.push(...(((data.transactions as Json[]) ?? [])));
       cursor = data.cursor as string | undefined;
       if (!cursor) break;
