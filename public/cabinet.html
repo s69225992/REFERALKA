@@ -85,6 +85,8 @@
   .doc .small{color:var(--muted);font-size:12px}
   select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--panel);color:var(--text)}
   .note{background:#fff8e1;border:1px solid #f0e3b0;color:#7a5c00;border-radius:10px;padding:10px 14px;font-size:13px;margin:10px 0}
+.dcell{transition:transform .12s ease, box-shadow .12s ease}
+.dcell:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.10)}
 </style>
 </head>
 <body>
@@ -290,6 +292,74 @@ async function loadDailySeries(){
   if(page==='overview') render();
 }
 
+// Клик по карточке дня — открыть Обзор вверху за этот день.
+function pickDay(ds){
+  curFrom = ds; curTo = ds; periodFactor = 1;
+  const label = ds.split('-').reverse().join('.');
+  periodLabel = label;
+  loadLive(ds+'T00:00:00.000+03:00', ds+'T23:59:59.999+03:00', label);
+  try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ window.scrollTo(0,0); }
+}
+
+// ===== График за период (прибыль + заказы), выбор диапазона =====
+let chartSeries = null;      // [{date, orders, commission, drivers}]
+let chartDays = 90;          // текущий диапазон в днях
+async function loadChartSeries(){
+  const token = sessionStorage.getItem('ref_token'); if(!token) return;
+  try{
+    const j = await fetch('/api/admin/daily-series?days='+chartDays,{headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    chartSeries = j.series || [];
+  }catch(e){ chartSeries = []; }
+  if(page==='overview') render();
+}
+function setChartRange(d){ chartDays=d; chartSeries=null; render(); loadChartSeries(); }
+// Группировка: день (<=92), неделя (<=210), иначе месяц.
+function bucketSeries(series){
+  const mode = chartDays<=92 ? 'day' : (chartDays<=210 ? 'week' : 'month');
+  if(mode==='day') return series.map(d=>({label:d.date.slice(8,10)+'.'+d.date.slice(5,7), commission:d.commission, orders:d.orders}));
+  const map=new Map();
+  for(const d of series){
+    let key,lab;
+    if(mode==='month'){ key=d.date.slice(0,7); lab=key.slice(5,7)+'.'+key.slice(2,4); }
+    else { const wk=Math.floor(new Date(d.date+'T00:00:00Z').getTime()/(7*86400000)); key='w'+wk; lab=d.date.slice(8,10)+'.'+d.date.slice(5,7); }
+    let e=map.get(key); if(!e){ e={label:lab, commission:0, orders:0}; map.set(key,e); }
+    e.commission+=d.commission; e.orders+=d.orders;
+  }
+  return [...map.values()];
+}
+function niceMax(v){ if(v<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(v))); const n=v/p; const m=n<=1?1:n<=2?2:n<=5?5:10; return m*p; }
+function kfmt(v){ v=Math.round(v); if(v>=1e6) return (v/1e6).toFixed(1).replace('.',',')+'M'; if(v>=1e3) return Math.round(v/1e3)+'k'; return String(v); }
+// Один мини-график (одна линия). fmtTip — формат значения в подсказке.
+function miniLine(points, color, fmtTip){
+  const W=800,H=210,pl=66,pr=18,pt=14,pb=34, plotW=W-pl-pr, plotH=H-pt-pb;
+  if(!points.length) return '<div class="muted" style="padding:10px">Нет данных за период</div>';
+  const yMax=niceMax(Math.max(1,...points.map(p=>p.v)));
+  const n=points.length; const X=i=> n<=1?pl+plotW/2:pl+plotW*i/(n-1); const Y=v=> pt+plotH*(1-v/yMax);
+  const grid=[0,0.5,1].map(f=>{const y=pt+plotH*(1-f); return `<line x1="${pl}" y1="${y.toFixed(1)}" x2="${W-pr}" y2="${y.toFixed(1)}" stroke="rgba(0,0,0,.07)"/><text x="${pl-8}" y="${(y+4).toFixed(1)}" text-anchor="end" font-size="13" fill="#94a3b8">${kfmt(yMax*f)}</text>`;}).join('');
+  const line=points.map((p,i)=>`${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
+  const area=`${X(0).toFixed(1)},${(pt+plotH).toFixed(1)} `+line+` ${X(n-1).toFixed(1)},${(pt+plotH).toFixed(1)}`;
+  const dots=points.map((p,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="${n>40?2.5:3.5}" fill="${color}"><title>${p.label}: ${fmtTip(p.v)}</title></circle>`).join('');
+  const step=Math.max(1,Math.ceil(n/6)); let xl='';
+  for(let i=0;i<n;i+=step){ xl+=`<text x="${X(i).toFixed(1)}" y="${H-12}" text-anchor="middle" font-size="13" fill="#94a3b8">${points[i].label}</text>`; }
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block">
+    ${grid}
+    <polygon points="${area}" fill="${color}" opacity="0.10"/>
+    <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${dots}${xl}
+  </svg>`;
+}
+function chartBlockHtml(token){
+  const ranges=[[30,'30 дней'],[90,'3 месяца'],[365,'Год'],[1000,'Всё']];
+  const btns=ranges.map(([d,l])=>`<button class="p ${chartDays===d?'':'sec'}" onclick="setChartRange(${d})" style="padding:8px 14px">${l}</button>`).join(' ');
+  let body;
+  if(chartSeries===null) body = `<div class="muted" style="padding:10px">${token?'Загрузка…':'Войдите, чтобы увидеть график'}</div>`;
+  else { const pts=bucketSeries(chartSeries);
+    body = `<div class="card" style="margin:0"><div class="lbl" style="margin-bottom:6px">Прибыль парка, ₽</div>${miniLine(pts.map(p=>({label:p.label,v:p.commission})), '#F5375F', v=>fmt(Math.round(v))+' ₽')}</div>`;
+  }
+  return `<div class="sec" style="margin-top:24px">Динамика</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${btns}</div>${body}`;
+}
+
 // ===== Заявки на привязку (Telegram) =====
 async function loadLinkReqs(){
   const token = sessionStorage.getItem('ref_token'); if(!token) return;
@@ -449,7 +519,7 @@ function showLogin(msg){
       const j=await r.json().catch(()=>({}));
       if(!r.ok||!j.ok||!j.token){ errEl.textContent=j.error||'Неверный логин или пароль'; btn.disabled=false; btn.textContent=t0; return; }
       sessionStorage.setItem('ref_token',j.token); ov.remove();
-      const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers(); loadDailySeries();
+      const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers(); loadDailySeries(); loadChartSeries();
     }catch(e){ errEl.textContent='Ошибка сети, попробуйте ещё раз'; btn.disabled=false; btn.textContent=t0; }
   };
   document.getElementById('loginGo').onclick=submit;
@@ -490,7 +560,7 @@ const MENUS = {
 };
 let role="manager", page="overview";
 function setRole(r){ role=r; page=MENUS[r][0][0]; try{sessionStorage.setItem('ref_role',r);sessionStorage.setItem('ref_page',page);}catch(e){} render(); }
-function go(p){ page=p; try{sessionStorage.setItem('ref_page',p);}catch(e){} render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='referrers' && referrersList===null) loadReferrers(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); if(p==='requests' && linkReqs===null) loadLinkReqs(); if(p==='overview' && dailySeries===null) loadDailySeries(); } }
+function go(p){ page=p; try{sessionStorage.setItem('ref_page',p);}catch(e){} render(); if(sessionStorage.getItem('ref_token')){ if(p==='agents' && agentsList===null) loadAgents(); if(p==='referrers' && referrersList===null) loadReferrers(); if(p==='drivers' && dbDriversByYid===null) loadDbDrivers(); if(p==='requests' && linkReqs===null) loadLinkReqs(); if(p==='overview' && dailySeries===null) loadDailySeries(); if(p==='overview' && chartSeries===null) loadChartSeries(); } }
 function setInviteTariff(id){ me.inviteTariff=id; render(); }
 
 function render(){
@@ -520,7 +590,7 @@ const PAGES = {
     // Посуточные квадратики за 30 дней (прибыль / водители / заказы) — ниже сводки.
     const dcard = d => {
       const dt = d.date.slice(8,10)+'.'+d.date.slice(5,7);
-      return `<div class="card" style="padding:14px;margin:0">
+      return `<div class="card dcell" style="padding:14px;margin:0;cursor:pointer" onclick="pickDay('${d.date}')" title="Открыть Обзор за ${dt}">
         <div style="font-weight:700;margin-bottom:10px;font-size:15px">${dt}</div>
         <div style="display:flex;justify-content:space-between;font-size:13px;margin:4px 0"><span class="muted">Прибыль</span><b>${fmt(Math.round(d.commission))} ₽</b></div>
         <div style="display:flex;justify-content:space-between;font-size:13px;margin:4px 0"><span class="muted">Водители</span><b>${d.drivers}</b></div>
@@ -555,7 +625,7 @@ const PAGES = {
           <div style="margin-top:6px">${TARIFFS.map(t=>`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Парк ${t.park}%</span><span class="muted">реферер ${String(t.ref).replace('.',',')}% с оборота</span></div>`).join('')}</div>
         </div>
       </div>
-    </div>${dailyBlock}`;
+    </div>${chartBlockHtml(token)}${dailyBlock}`;
   },
   drivers:()=>{
     const waiting = !!sessionStorage.getItem('ref_token') && !liveLoaded;
@@ -815,7 +885,7 @@ function ofertaDoc(forReferrer){
     page = (sp && MENUS[role].some(m=>m[0]===sp)) ? sp : MENUS[role][0][0];
   }catch(e){}
   render();
-  if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers(); loadDailySeries(); }
+  if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers(); loadDailySeries(); loadChartSeries(); }
   else { setBadge('demo'); showLogin(); }
 })();
 </script>

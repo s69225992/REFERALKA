@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   if (!authed(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
-    const days = Math.min(90, Math.max(1, Number(req.nextUrl.searchParams.get("days") || 30)));
+    const days = Math.min(1000, Math.max(1, Number(req.nextUrl.searchParams.get("days") || 30)));
     const from = new Date(`${mskDateStr(days - 1)}T00:00:00.000Z`);
     // Считаем только АКТИВНЫХ за день: заказ и/или прибыль > 0.
     // (склад пишет строку на каждого водителя парка, поэтому фильтруем нулевые).
