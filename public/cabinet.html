@@ -307,7 +307,7 @@ async function refreshNow(){
   const token=sessionStorage.getItem('ref_token'); if(!token){ showLogin(); return; }
   if(_refreshing) return; _refreshing=true;
   const btn=document.getElementById('btnRefresh'); const t0=btn?btn.textContent:'';
-  if(btn){ btn.disabled=true; btn.textContent='Обновляю…'; }
+  if(btn){ btn.disabled=true; btn.textContent='…'; }
   setBadge('loading');
   try{
     const today=mskTodayStr();
@@ -358,18 +358,49 @@ function miniLine(points, color, fmtTip){
   if(!points.length) return '<div class="muted" style="padding:10px">Нет данных за период</div>';
   const yMax=niceMax(Math.max(1,...points.map(p=>p.v)));
   const n=points.length; const X=i=> n<=1?pl+plotW/2:pl+plotW*i/(n-1); const Y=v=> pt+plotH*(1-v/yMax);
+  // геометрия точек + готовая подпись для наведения
+  const pdata=points.map((p,i)=>({x:+X(i).toFixed(1), y:+Y(p.v).toFixed(1), t:`${p.label} · ${fmtTip(p.v)}`}));
   const grid=[0,0.5,1].map(f=>{const y=pt+plotH*(1-f); return `<line x1="${pl}" y1="${y.toFixed(1)}" x2="${W-pr}" y2="${y.toFixed(1)}" stroke="rgba(0,0,0,.07)"/><text x="${pl-8}" y="${(y+4).toFixed(1)}" text-anchor="end" font-size="13" fill="#94a3b8">${kfmt(yMax*f)}</text>`;}).join('');
-  const line=points.map((p,i)=>`${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
-  const area=`${X(0).toFixed(1)},${(pt+plotH).toFixed(1)} `+line+` ${X(n-1).toFixed(1)},${(pt+plotH).toFixed(1)}`;
-  const dots=points.map((p,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="${n>40?2.5:3.5}" fill="${color}"><title>${p.label}: ${fmtTip(p.v)}</title></circle>`).join('');
+  const line=pdata.map(p=>`${p.x},${p.y}`).join(' ');
+  const area=`${pdata[0].x},${(pt+plotH).toFixed(1)} `+line+` ${pdata[n-1].x},${(pt+plotH).toFixed(1)}`;
+  const dots=pdata.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="${n>40?2:3}" fill="${color}"/>`).join('');
   const step=Math.max(1,Math.ceil(n/6)); let xl='';
-  for(let i=0;i<n;i+=step){ xl+=`<text x="${X(i).toFixed(1)}" y="${H-12}" text-anchor="middle" font-size="13" fill="#94a3b8">${points[i].label}</text>`; }
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block">
+  for(let i=0;i<n;i+=step){ xl+=`<text x="${pdata[i].x}" y="${H-12}" text-anchor="middle" font-size="13" fill="#94a3b8">${points[i].label}</text>`; }
+  const ptsAttr=JSON.stringify(pdata).replace(/'/g,'&#39;');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block" data-pts='${ptsAttr}'>
     ${grid}
     <polygon points="${area}" fill="${color}" opacity="0.10"/>
     <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
     ${dots}${xl}
+    <line class="cx" x1="0" x2="0" y1="${pt}" y2="${pt+plotH}" stroke="rgba(0,0,0,.28)" stroke-width="1" style="display:none"/>
+    <circle class="focus" r="5.5" fill="${color}" stroke="#fff" stroke-width="2" style="display:none"/>
+    <g class="tip" style="display:none"><rect rx="8" fill="#111827" opacity="0.94"></rect><text text-anchor="middle" fill="#fff" font-size="15" font-weight="700"></text></g>
+    <rect x="${pl}" y="${pt}" width="${plotW}" height="${plotH}" fill="transparent" onmousemove="chHover(event,this)" onmouseleave="chLeave(this)"></rect>
   </svg>`;
+}
+// Наведение на график: крестик + точка + подсказка «дата · сумма» для ближайшего дня.
+function chHover(evt, ovRect){
+  const svg=ovRect.ownerSVGElement; if(!svg) return;
+  let pts; try{ pts=JSON.parse(svg.getAttribute('data-pts')); }catch(e){ return; }
+  if(!pts||!pts.length) return;
+  const r=svg.getBoundingClientRect(); const vb=svg.viewBox.baseVal;
+  const sx=vb.width/r.width; const mx=(evt.clientX-r.left)*sx;
+  let best=0,bd=1e9; for(let i=0;i<pts.length;i++){ const d=Math.abs(pts[i].x-mx); if(d<bd){bd=d;best=i;} }
+  const p=pts[best];
+  const cx=svg.querySelector('.cx'); cx.setAttribute('x1',p.x); cx.setAttribute('x2',p.x); cx.style.display='';
+  const fc=svg.querySelector('.focus'); fc.setAttribute('cx',p.x); fc.setAttribute('cy',p.y); fc.style.display='';
+  const g=svg.querySelector('.tip'); const bg=g.querySelector('rect'); const tx=g.querySelector('text');
+  tx.textContent=p.t;
+  const w=Math.max(80, p.t.length*8.4)+20, h=30;
+  let rx=p.x-w/2; rx=Math.max(2, Math.min(vb.width-2-w, rx));
+  let ry=p.y-h-12; if(ry<2) ry=p.y+14;
+  bg.setAttribute('x',rx); bg.setAttribute('y',ry); bg.setAttribute('width',w); bg.setAttribute('height',h);
+  tx.setAttribute('x',rx+w/2); tx.setAttribute('y',ry+20);
+  g.style.display='';
+}
+function chLeave(ovRect){
+  const svg=ovRect.ownerSVGElement; if(!svg) return;
+  ['.cx','.focus','.tip'].forEach(s=>{ const el=svg.querySelector(s); if(el) el.style.display='none'; });
 }
 function chartBlockHtml(token){
   const ranges=[[30,'30 дней'],[90,'3 месяца'],[365,'Год'],[1000,'Всё']];
@@ -556,12 +587,12 @@ function periodBar(active){
   const presets=[[1,'Неделя'],[2,'2 недели'],[4.345,'Месяц'],[13,'Квартал']];
   const on=l=>(periodLabel===l || (l==='Неделя' && periodLabel==='Эта неделя'))?'on':'';
   return `<div class="period">
+    <button class="p" id="btnRefresh" onclick="refreshNow()" title="Обновить данные за сегодня из Fleet" style="font-size:18px;line-height:1;padding:8px 12px">⟳</button>
     ${days.map(([o,l])=>`<button class="p ${on(l)}" onclick="setDay(${o},'${l}')">${l}</button>`).join('')}
     ${presets.map(([f,l])=>`<button class="p ${on(l)}" onclick="setPeriod(${f},'${l}')">${l}</button>`).join('')}
     <span class="muted" style="font-size:12px">или</span>
     <input type="date" id="cFrom" value="${curFrom||mskTodayStr()}"><span class="muted">–</span><input type="date" id="cTo" value="${curTo||mskTodayStr()}">
     <button class="p" onclick="applyCustom()">Применить</button>
-    <button class="p" id="btnRefresh" onclick="refreshNow()" title="Подтянуть свежие данные за сегодня из Fleet прямо сейчас">⟳ Обновить</button>
     <span class="lab">Период: ${periodLabel}</span>
   </div>`;
 }
