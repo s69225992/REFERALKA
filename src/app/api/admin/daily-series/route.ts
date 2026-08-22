@@ -13,9 +13,11 @@ export async function GET(req: NextRequest) {
   try {
     const days = Math.min(90, Math.max(1, Number(req.nextUrl.searchParams.get("days") || 30)));
     const from = new Date(`${mskDateStr(days - 1)}T00:00:00.000Z`);
+    // Считаем только АКТИВНЫХ за день: заказ и/или прибыль > 0.
+    // (склад пишет строку на каждого водителя парка, поэтому фильтруем нулевые).
     const rows = await prisma.driverDailyStat.groupBy({
       by: ["date"],
-      where: { date: { gte: from } },
+      where: { date: { gte: from }, OR: [{ orders: { gt: 0 } }, { parkCommission: { gt: 0 } }] },
       _sum: { orders: true, parkCommission: true },
       _count: { _all: true },
       orderBy: { date: "asc" },
