@@ -301,6 +301,29 @@ function pickDay(ds){
   try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ window.scrollTo(0,0); }
 }
 
+// Ручное обновление: форсим сегодня и вчера из Fleet, затем перезагружаем всё.
+let _refreshing=false;
+async function refreshNow(){
+  const token=sessionStorage.getItem('ref_token'); if(!token){ showLogin(); return; }
+  if(_refreshing) return; _refreshing=true;
+  const btn=document.getElementById('btnRefresh'); const t0=btn?btn.textContent:'';
+  if(btn){ btn.disabled=true; btn.textContent='Обновляю…'; }
+  setBadge('loading');
+  try{
+    const today=mskTodayStr();
+    const y=new Date(new Date(today+'T00:00:00Z').getTime()-86400000).toISOString().slice(0,10);
+    for(const d of [y, today]){
+      await fetch('/api/admin/sync-day?date='+d,{headers:{Authorization:'Bearer '+token}}).then(r=>r.json()).catch(()=>{});
+    }
+    dailySeries=null; chartSeries=null;
+    const a=curFrom||today, b=curTo||today;
+    await loadLive(a+'T00:00:00.000+03:00', b+'T23:59:59.999+03:00', periodLabel);
+    loadDailySeries(); loadChartSeries();
+  }catch(e){}
+  _refreshing=false;
+  const b2=document.getElementById('btnRefresh'); if(b2){ b2.disabled=false; b2.textContent=t0||'⟳ Обновить'; }
+}
+
 // ===== График за период (прибыль + заказы), выбор диапазона =====
 let chartSeries = null;      // [{date, orders, commission, drivers}]
 let chartDays = 90;          // текущий диапазон в днях
@@ -538,6 +561,7 @@ function periodBar(active){
     <span class="muted" style="font-size:12px">или</span>
     <input type="date" id="cFrom" value="${curFrom||mskTodayStr()}"><span class="muted">–</span><input type="date" id="cTo" value="${curTo||mskTodayStr()}">
     <button class="p" onclick="applyCustom()">Применить</button>
+    <button class="p" id="btnRefresh" onclick="refreshNow()" title="Подтянуть свежие данные за сегодня из Fleet прямо сейчас">⟳ Обновить</button>
     <span class="lab">Период: ${periodLabel}</span>
   </div>`;
 }
