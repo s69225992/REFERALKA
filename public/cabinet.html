@@ -290,6 +290,7 @@ async function startHistBackfill(){
   try{
     while(localStorage.getItem('hlbf_active')==='1'){
       const tok=sessionStorage.getItem('ref_token'); if(!tok) break;
+      const dl=+localStorage.getItem('hlbf_deadline')||0; if(dl && Date.now()>dl){ localStorage.setItem('hlbf_active','0'); break; } // авто-стоп по дедлайну
       const day=localStorage.getItem('hlbf_frontier'); const floor=localStorage.getItem('hlbf_floor')||'2025-01-01';
       if(!day || day<floor){ localStorage.setItem('hlbf_active','0'); break; }
       let txt='',j=null;
