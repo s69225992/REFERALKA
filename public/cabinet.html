@@ -281,6 +281,29 @@ function refNewCount(){ return (referrersList||[]).filter(refIsNew).length; }
 let refFilter='new'; // какой раздел «Рефереры» открыт: 'new' | 'all'
 function setRefFilter(f){ refFilter=f; render(); }
 
+// ===== Фоновая догрузка истории назад (само-возобновляемая по флагу localStorage) =====
+// Включается флагом hlbf_active='1'; переживает перезагрузку вкладки (стартует из init).
+// Прогресс — в localStorage (hlbf_frontier). Служебное, для разовой заливки истории.
+async function startHistBackfill(){
+  if(window.__histRunning) return; window.__histRunning=true;
+  const add=(ds,n)=>{const d=new Date(ds+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10);};
+  try{
+    while(localStorage.getItem('hlbf_active')==='1'){
+      const tok=sessionStorage.getItem('ref_token'); if(!tok) break;
+      const day=localStorage.getItem('hlbf_frontier'); const floor=localStorage.getItem('hlbf_floor')||'2025-01-01';
+      if(!day || day<floor){ localStorage.setItem('hlbf_active','0'); break; }
+      let txt='',j=null;
+      try{ const r=await fetch(`/api/admin/sync-range-batch?from=${day}&to=${day}&budget=120000`,{headers:{Authorization:'Bearer '+tok}}); txt=await r.text(); j=JSON.parse(txt); }
+      catch(e){ await new Promise(x=>setTimeout(x,8000)); continue; }
+      if(!j || !j.ok){ await new Promise(x=>setTimeout(x,5000)); continue; }
+      localStorage.setItem('hlbf_synced', String((+localStorage.getItem('hlbf_synced')||0)+(j.syncedCount||0)));
+      localStorage.setItem('hlbf_frontier', add(day,-1));
+      localStorage.setItem('hlbf_last', day);
+      await new Promise(x=>setTimeout(x,4000));
+    }
+  } finally { window.__histRunning=false; }
+}
+
 // ===== Посуточная сводка за 30 дней (для «Обзора») =====
 let dailySeries = null; // [{date, orders, commission, drivers}]
 async function loadDailySeries(){
@@ -940,7 +963,8 @@ function ofertaDoc(forReferrer){
     page = (sp && MENUS[role].some(m=>m[0]===sp)) ? sp : MENUS[role][0][0];
   }catch(e){}
   render();
-  if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers(); loadDailySeries(); loadChartSeries(); }
+  if(token){ const [a,b]=dayRange(0); loadLive(a,b,'Сегодня'); loadReferrers(); loadDailySeries(); loadChartSeries();
+    try{ if(localStorage.getItem('hlbf_active')==='1') setTimeout(startHistBackfill,1500); }catch(e){} }
   else { setBadge('demo'); showLogin(); }
 })();
 </script>
