@@ -121,6 +121,24 @@ export class FleetClient {
     return out;
   }
 
+  // ДИАГНОСТИКА: одна страница транзакций ВСЕГО парка (без фильтра по водителю).
+  // Проверяем, доступен ли общий проход и есть ли привязка к водителю в записи.
+  async probeParkTransactions(from: string, to: string, limit = 200): Promise<Json> {
+    const body: Json = {
+      query: { park: { id: this.parkId, transaction: { event_at: { from, to } } } },
+      limit,
+    };
+    const data = await this.postWithRetry("/v2/parks/driver-profiles/transactions/list", body);
+    const batch = (data.transactions as Json[]) ?? [];
+    const t0 = (batch[0] as Json) || null;
+    return {
+      pageLen: batch.length,
+      hasCursor: !!data.cursor,
+      sampleKeys: t0 ? Object.keys(t0) : [],
+      sample: t0,
+    };
+  }
+
   // Кол-во заказов парка за период (ISO 8601), фильтр по booked_at, перебор cursor.
   // Best-effort: считаем длину страниц. Guard ограничивает число страниц (защита от
   // бесконечного цикла / чрезмерной нагрузки). Имена полей — оборонительно.
